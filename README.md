@@ -25,7 +25,7 @@
 
 ## 🔥🔥🔥 News (Pacific Time)
 - 12:20 PM, Apr 02, 2026: **v3.0** — Multi-agent packages (`multi_agent/`), memory package (`memory/`), skill package (`skill/`) with built-in skills, argument substitution, fork/inline execution, AI memory search, git worktree isolation, agent type definitions (**~5000** lines of Python)
-- 10:00 AM, Apr 02, 2026: **v2.0** — Context compression, memory, sub-agents, skills, diff view, tool plugin system (**~3400** lines of Python Code)
+- 10:00 AM, Apr 02, 2026: **v2.0** — Context compression, memory, sub-agents, skills, diff view, tool plugin system (**~3400** lines of Python Code), see [update](https://github.com/SafeRL-Lab/nano-claude-code/blob/main/Update_README.MD)
 - 01:47 PM, Apr 01, 2026: Support VLLM inference (**~2000** lines of Python Code)
 - 11:30 AM, Apr 01, 2026: Support more **closed-source** models and **open-source models**: Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, and local open-source models via Ollama or any OpenAI-compatible endpoint. (**~1700** lines of Python Code)
 - 09:50 AM, Apr 01, 2026: Support more **closed-source** models: Claude, GPT, Gemini. (**~1300** lines of Python Code)
