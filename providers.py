@@ -287,8 +287,9 @@ def messages_to_openai(messages: list) -> list:
             msg: dict = {"role": "assistant", "content": m.get("content") or None}
             tcs = m.get("tool_calls", [])
             if tcs:
-                msg["tool_calls"] = [
-                    {
+                msg["tool_calls"] = []
+                for tc in tcs:
+                    tc_msg = {
                         "id":   tc["id"],
                         "type": "function",
                         "function": {
@@ -296,8 +297,10 @@ def messages_to_openai(messages: list) -> list:
                             "arguments": json.dumps(tc["input"], ensure_ascii=False),
                         },
                     }
-                    for tc in tcs
-                ]
+                    # Pass through provider-specific fields (e.g. Gemini thought_signature)
+                    if tc.get("extra_content"):
+                        tc_msg["extra_content"] = tc["extra_content"]
+                    msg["tool_calls"].append(tc_msg)
             result.append(msg)
 
         elif role == "tool":
@@ -435,7 +438,7 @@ def stream_openai_compat(
             for tc in delta.tool_calls:
                 idx = tc.index
                 if idx not in tool_buf:
-                    tool_buf[idx] = {"id": "", "name": "", "args": ""}
+                    tool_buf[idx] = {"id": "", "name": "", "args": "", "extra_content": None}
                 if tc.id:
                     tool_buf[idx]["id"] = tc.id
                 if tc.function:
@@ -443,6 +446,10 @@ def stream_openai_compat(
                         tool_buf[idx]["name"] += tc.function.name
                     if tc.function.arguments:
                         tool_buf[idx]["args"] += tc.function.arguments
+                # Capture extra_content (e.g. Gemini thought_signature)
+                extra = getattr(tc, "extra_content", None)
+                if extra:
+                    tool_buf[idx]["extra_content"] = extra
 
         # Some providers include usage in the last chunk
         if hasattr(chunk, "usage") and chunk.usage:
@@ -456,7 +463,10 @@ def stream_openai_compat(
             inp = json.loads(v["args"]) if v["args"] else {}
         except json.JSONDecodeError:
             inp = {"_raw": v["args"]}
-        tool_calls.append({"id": v["id"] or f"call_{idx}", "name": v["name"], "input": inp})
+        tc_entry = {"id": v["id"] or f"call_{idx}", "name": v["name"], "input": inp}
+        if v.get("extra_content"):
+            tc_entry["extra_content"] = v["extra_content"]
+        tool_calls.append(tc_entry)
 
     yield AssistantTurn(text, tool_calls, in_tok, out_tok)
 

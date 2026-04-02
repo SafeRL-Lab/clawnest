@@ -36,7 +36,10 @@ from __future__ import annotations
 import os
 import sys
 import json
-import readline
+try:
+    import readline
+except ImportError:
+    readline = None  # Windows compatibility
 import atexit
 import argparse
 import textwrap
@@ -478,6 +481,8 @@ def handle_slash(line: str, state, config) -> Union[bool, tuple]:
 # ── Input history setup ────────────────────────────────────────────────────
 
 def setup_readline(history_file: Path):
+    if readline is None:
+        return
     try:
         readline.read_history_file(str(history_file))
     except FileNotFoundError:
