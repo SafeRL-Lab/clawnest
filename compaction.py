@@ -68,7 +68,7 @@ def snip_old_tool_results(
     Returns:
         the same messages list (mutated)
     """
-    cutoff = len(messages) - preserve_last_n_turns
+    cutoff = max(0, len(messages) - preserve_last_n_turns)
     for i in range(cutoff):
         m = messages[i]
         if m.get("role") != "tool":

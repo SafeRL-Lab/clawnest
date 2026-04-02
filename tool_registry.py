@@ -75,7 +75,10 @@ def execute_tool(
     if tool is None:
         return f"Error: tool '{name}' not found."
 
-    result = tool.func(params, config)
+    try:
+        result = tool.func(params, config)
+    except Exception as e:
+        return f"Error executing {name}: {e}"
 
     if len(result) > max_output:
         first_half = max_output // 2

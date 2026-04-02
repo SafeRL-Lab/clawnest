@@ -195,6 +195,8 @@ def _write(file_path: str, content: str) -> str:
             return f"Created {file_path} ({lc} lines)"
         filename = p.name
         diff = generate_unified_diff(old_content, content, filename)
+        if not diff:
+            return f"No changes in {file_path}"
         truncated = maybe_truncate_diff(diff)
         return f"File updated — {file_path}:\n\n{truncated}"
     except Exception as e:
@@ -480,7 +482,7 @@ register_tool(ToolDef(
     },
     func=_memory_save,
     read_only=False,
-    concurrent_safe=True,
+    concurrent_safe=False,
 ))
 
 register_tool(ToolDef(
@@ -499,7 +501,7 @@ register_tool(ToolDef(
     },
     func=_memory_delete,
     read_only=False,
-    concurrent_safe=True,
+    concurrent_safe=False,
 ))
 
 

@@ -33,7 +33,7 @@ def _parse_list_field(value: str) -> list:
     value = value.strip()
     if value.startswith("[") and value.endswith("]"):
         value = value[1:-1]
-    return [item.strip() for item in value.split(",") if item.strip()]
+    return [item.strip().strip('"').strip("'") for item in value.split(",") if item.strip()]
 
 
 def _parse_skill_file(path: Path) -> Optional[SkillDef]:

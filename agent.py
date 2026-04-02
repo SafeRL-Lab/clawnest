@@ -72,6 +72,9 @@ def run(
     # Append user turn in neutral format
     state.messages.append({"role": "user", "content": user_message})
 
+    # Inject depth into config so Agent tool can access it
+    config = {**config, "_depth": depth}
+
     while True:
         if cancel_check and cancel_check():
             return

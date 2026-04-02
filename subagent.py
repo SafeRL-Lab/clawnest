@@ -104,7 +104,10 @@ class SubAgentManager:
         if task is None:
             return None
         if task._future is not None:
-            task._future.result(timeout=timeout)
+            try:
+                task._future.result(timeout=timeout)
+            except Exception:
+                pass  # timeout or other error — task status already set by _run
         return task
 
     def get_result(self, task_id: str) -> Optional[str]:
