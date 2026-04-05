@@ -41,8 +41,9 @@ PROVIDERS: dict[str, dict] = {
         "api_key_env": "OPENAI_API_KEY",
         "base_url":   "https://api.openai.com/v1",
         "context_limit": 128000,
+        "max_completion_tokens": 16384,  # safe cap across gpt-4o/gpt-4.1 family
         "models": [
-            "gpt-4o", "gpt-4o-mini", "gpt-4-turbo",
+            "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini",
             "o3-mini", "o1", "o1-mini",
         ],
     },
@@ -418,7 +419,9 @@ def stream_openai_compat(
         if not config.get("disable_tool_choice"):
             kwargs["tool_choice"] = "auto"
     if config.get("max_tokens"):
-        kwargs["max_tokens"] = config["max_tokens"]
+        prov_cap = PROVIDERS.get(detect_provider(model), {}).get("max_completion_tokens")
+        mt = config["max_tokens"]
+        kwargs["max_tokens"] = min(mt, prov_cap) if prov_cap else mt
 
     text          = ""
     tool_buf: dict = {}   # index → {id, name, args_str}
