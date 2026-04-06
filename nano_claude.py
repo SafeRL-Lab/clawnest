@@ -2027,6 +2027,161 @@ def cmd_compact(args: str, state, config) -> bool:
     return True
 
 
+def cmd_init(args: str, state, config) -> bool:
+    """Initialize a CLAUDE.md file in the current directory.
+
+    /init          — create CLAUDE.md with a starter template
+    """
+    target = Path.cwd() / "CLAUDE.md"
+    if target.exists():
+        err(f"CLAUDE.md already exists at {target}")
+        info("Edit it directly or delete it first.")
+        return True
+
+    project_name = Path.cwd().name
+    template = (
+        f"# {project_name}\n\n"
+        "## Project Overview\n"
+        "<!-- Describe what this project does -->\n\n"
+        "## Tech Stack\n"
+        "<!-- Languages, frameworks, key dependencies -->\n\n"
+        "## Conventions\n"
+        "<!-- Coding style, naming conventions, patterns to follow -->\n\n"
+        "## Important Files\n"
+        "<!-- Key entry points, config files, etc. -->\n\n"
+        "## Testing\n"
+        "<!-- How to run tests, testing conventions -->\n\n"
+    )
+    target.write_text(template, encoding="utf-8")
+    info(f"Created {target}")
+    info("Edit it to give Claude context about your project.")
+    return True
+
+
+def cmd_export(args: str, state, config) -> bool:
+    """Export conversation history to a file.
+
+    /export              — export as markdown to .nano_claude/exports/
+    /export <filename>   — export to a specific file (.md or .json)
+    """
+    if not state.messages:
+        err("No conversation to export.")
+        return True
+
+    arg = args.strip()
+    if arg:
+        out_path = Path(arg)
+    else:
+        export_dir = Path.cwd() / ".nano_claude" / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = export_dir / f"conversation_{ts}.md"
+
+    is_json = out_path.suffix.lower() == ".json"
+
+    if is_json:
+        out_path.write_text(
+            json.dumps(state.messages, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    else:
+        lines = []
+        for m in state.messages:
+            role = m.get("role", "unknown")
+            content = m.get("content", "")
+            if isinstance(content, list):
+                content = "(structured content)"
+            if role == "user":
+                lines.append(f"## User\n\n{content}\n")
+            elif role == "assistant":
+                lines.append(f"## Assistant\n\n{content}\n")
+            elif role == "tool":
+                name = m.get("name", "tool")
+                lines.append(f"### Tool: {name}\n\n```\n{content[:2000]}\n```\n")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("\n".join(lines), encoding="utf-8")
+
+    info(f"Exported {len(state.messages)} messages to {out_path}")
+    return True
+
+
+def cmd_copy(args: str, state, config) -> bool:
+    """Copy the last assistant response to clipboard.
+
+    /copy   — copy last assistant message to clipboard
+    """
+    # Find last assistant message
+    last_reply = None
+    for m in reversed(state.messages):
+        if m.get("role") == "assistant":
+            content = m.get("content", "")
+            if isinstance(content, str) and content.strip():
+                last_reply = content
+                break
+
+    if not last_reply:
+        err("No assistant response to copy.")
+        return True
+
+    try:
+        import subprocess as _sp
+        import sys as _sys
+        if _sys.platform == "win32":
+            proc = _sp.Popen(["clip"], stdin=_sp.PIPE)
+            proc.communicate(last_reply.encode("utf-16le"))
+        elif _sys.platform == "darwin":
+            proc = _sp.Popen(["pbcopy"], stdin=_sp.PIPE)
+            proc.communicate(last_reply.encode("utf-8"))
+        else:
+            # Linux: try xclip, then xsel
+            for cmd in (["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]):
+                try:
+                    proc = _sp.Popen(cmd, stdin=_sp.PIPE)
+                    proc.communicate(last_reply.encode("utf-8"))
+                    break
+                except FileNotFoundError:
+                    continue
+            else:
+                err("No clipboard tool found. Install xclip or xsel.")
+                return True
+        info(f"Copied {len(last_reply)} chars to clipboard.")
+    except Exception as e:
+        err(f"Failed to copy: {e}")
+    return True
+
+
+def cmd_status(args: str, state, config) -> bool:
+    """Show current session status.
+
+    /status   — model, provider, permissions, session info
+    """
+    from providers import detect_provider
+    from compaction import estimate_tokens, get_context_limit
+
+    model = config.get("model", "unknown")
+    provider = detect_provider(model)
+    perm_mode = config.get("permission_mode", "auto")
+    session_id = config.get("_session_id", "N/A")
+    turn_count = getattr(state, "turn_count", 0)
+    msg_count = len(getattr(state, "messages", []))
+    tokens_in = getattr(state, "total_input_tokens", 0)
+    tokens_out = getattr(state, "total_output_tokens", 0)
+    est_ctx = estimate_tokens(getattr(state, "messages", []))
+    ctx_limit = get_context_limit(model)
+    ctx_pct = (est_ctx / ctx_limit * 100) if ctx_limit else 0
+    plan_mode = config.get("permission_mode") == "plan"
+
+    print(f"  Version:     {VERSION}")
+    print(f"  Model:       {model} ({provider})")
+    print(f"  Permissions: {perm_mode}" + (" [PLAN MODE]" if plan_mode else ""))
+    print(f"  Session:     {session_id}")
+    print(f"  Turns:       {turn_count}")
+    print(f"  Messages:    {msg_count}")
+    print(f"  Tokens:      ~{tokens_in} in / ~{tokens_out} out")
+    print(f"  Context:     ~{est_ctx} / {ctx_limit} ({ctx_pct:.0f}%)")
+    return True
+
+
 COMMANDS = {
     "help":        cmd_help,
     "clear":       cmd_clear,
@@ -2057,6 +2212,10 @@ COMMANDS = {
     "rewind":      cmd_rewind,
     "plan":        cmd_plan,
     "compact":     cmd_compact,
+    "init":        cmd_init,
+    "export":      cmd_export,
+    "copy":        cmd_copy,
+    "status":      cmd_status,
     "exit":        cmd_exit,
     "quit":        cmd_exit,
     "resume":      cmd_resume
@@ -2128,6 +2287,10 @@ _CMD_META: dict[str, tuple[str, list[str]]] = {
     "rewind":      ("Rewind to checkpoint (alias)",        ["clear"]),
     "plan":        ("Enter/exit plan mode",                ["done", "status"]),
     "compact":     ("Compact conversation history",         []),
+    "init":        ("Initialize CLAUDE.md template",        []),
+    "export":      ("Export conversation to file",          []),
+    "copy":        ("Copy last response to clipboard",      []),
+    "status":      ("Show session status and model info",   []),
     "exit":        ("Exit nano-claude-code",              []),
     "quit":        ("Exit (alias for /exit)",             []),
     "resume":      ("Resume last session",                []),
