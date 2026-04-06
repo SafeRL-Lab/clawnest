@@ -9,6 +9,7 @@ Supported providers:
   qwen       — Alibaba DashScope (qwen-max, qwen-plus, ...)
   zhipu      — Zhipu GLM (glm-4, glm-4-plus, ...)
   deepseek   — DeepSeek (deepseek-chat, deepseek-reasoner, ...)
+  minimax    — MiniMax (MiniMax-Text-01, abab6.5s-chat, ...)
   ollama     — Local Ollama (llama3.3, qwen2.5-coder, ...)
   lmstudio   — Local LM Studio (any loaded model)
   custom     — Any OpenAI-compatible endpoint
@@ -99,6 +100,17 @@ PROVIDERS: dict[str, dict] = {
             "deepseek-chat", "deepseek-coder", "deepseek-reasoner",
         ],
     },
+    "minimax": {
+        "type":       "openai",
+        "api_key_env": "MINIMAX_API_KEY",
+        "base_url":   "https://api.minimaxi.chat/v1",
+        "context_limit": 1000000,
+        "models": [
+            "MiniMax-Text-01", "MiniMax-VL-01",
+            "abab6.5s-chat", "abab6.5-chat",
+            "abab5.5s-chat", "abab5.5-chat",
+        ],
+    },
     "ollama": {
         "type":       "ollama",
         "api_key_env": None,
@@ -146,6 +158,9 @@ COSTS = {
     "deepseek-chat":            (0.27,  1.1),
     "deepseek-reasoner":        (0.55,  2.19),
     "glm-4-plus":               (0.7,   0.7),
+    "MiniMax-Text-01":          (0.7,   2.1),
+    "abab6.5s-chat":            (0.1,   0.1),
+    "abab6.5-chat":             (0.5,   0.5),
 }
 
 # Auto-detection: prefix → provider name
@@ -161,6 +176,9 @@ _PREFIXES = [
     ("qwq-",          "qwen"),
     ("glm-",          "zhipu"),
     ("deepseek-",     "deepseek"),
+    ("minimax-",      "minimax"),
+    ("MiniMax-",      "minimax"),
+    ("abab",          "minimax"),
     ("llama",         "ollama"),
     ("mistral",       "ollama"),
     ("phi",           "ollama"),

@@ -134,7 +134,7 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
 
 # CheetahClaws
 
-CheetahClaws: **A Lightweight** and **Easy-to-Use** Python Reimplementation of Claude Code **Supporting Any Model**, such as Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, and local open-source models via Ollama or any OpenAI-compatible endpoint.
+CheetahClaws: **A Lightweight** and **Easy-to-Use** Python Reimplementation of Claude Code **Supporting Any Model**, such as Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax, and local open-source models via Ollama or any OpenAI-compatible endpoint.
 
 ---
 
@@ -193,7 +193,7 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 | Built-in tools | 44+ | 27 |
 | Slash commands | 88 | 36 |
 | Voice input | Proprietary Anthropic WebSocket (OAuth required) | Local Whisper / OpenAI API — works offline, no subscription |
-| Model providers | Anthropic only | 7+ (Anthropic · OpenAI · Gemini · Kimi · Qwen · DeepSeek · Ollama · …) |
+| Model providers | Anthropic only | 8+ (Anthropic · OpenAI · Gemini · Kimi · Qwen · DeepSeek · MiniMax · Ollama · …) |
 | Local models | No | Yes — Ollama, LM Studio, vLLM, any OpenAI-compatible endpoint |
 | Build step required | Yes (Bun + esbuild) | No — run directly with `python cheetahclaws.py` (or install to use `cheetahclaws`) |
 | Runtime extensibility | Closed (compile-time) | Open — `register_tool()` at runtime, Markdown skills, git plugins |
@@ -209,7 +209,7 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 
 ### Where CheetahClaws wins
 
-- **Multi-provider** — switch between Claude, GPT-4o, Gemini 2.5 Pro, DeepSeek, Qwen, or a local Llama model with `--model` or `/model` — no recompile needed.
+- **Multi-provider** — switch between Claude, GPT-4o, Gemini 2.5 Pro, DeepSeek, Qwen, MiniMax, or a local Llama model with `--model` or `/model` — no recompile needed.
 - **Local model support** — run entirely offline with Ollama, LM Studio, or any vLLM-hosted model.
 - **Readable source** — the full agent loop is 174 lines (`agent.py`). Any Python developer can read, fork, and extend it in minutes.
 - **Zero build** — `pip install -r requirements.txt` and you're running. Changes take effect immediately.
@@ -273,7 +273,7 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 
 - **Coding toolset** — Read/Write/Edit/Bash/Glob/Grep/NotebookEdit/GetDiagnostics are purpose-built for software development; CheetahClaws understands diffs, file trees, and code structure.
 - **True local model support** — full Ollama/vLLM/LM Studio integration with streaming, tool-calling, and vision — no cloud required.
-- **7+ model providers** — switch between Claude, GPT-4o, Gemini, DeepSeek, Qwen, and local models with a single `--model` flag.
+- **8+ model providers** — switch between Claude, GPT-4o, Gemini, DeepSeek, Qwen, MiniMax, and local models with a single `--model` flag.
 - **Hackable in minutes** — 12K lines of readable Python; the entire agent loop is in `agent.py`; extend with `register_tool()` at runtime without rebuilding.
 - **Zero setup** — `pip install cheetahclaws` and run `cheetahclaws`; no daemon, no pairing, no onboarding wizard.
 - **MCP support** — connect any MCP server (stdio/SSE/HTTP); tools auto-registered.
@@ -325,7 +325,7 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 
 | Feature | Details |
 |---|---|
-| Multi-provider | Anthropic · OpenAI · Gemini · Kimi · Qwen · Zhipu · DeepSeek · Ollama · LM Studio · Custom endpoint |
+| Multi-provider | Anthropic · OpenAI · Gemini · Kimi · Qwen · Zhipu · DeepSeek · MiniMax · Ollama · LM Studio · Custom endpoint |
 | Interactive REPL | readline history, Tab-complete slash commands with descriptions + subcommand hints; Bracketed Paste Mode for reliable multi-line paste |
 | Agent loop | Streaming API + automatic tool-use loop |
 | 27 built-in tools | Read · Write · Edit · Bash · Glob · Grep · WebFetch · WebSearch · **NotebookEdit** · **GetDiagnostics** · MemorySave · MemoryDelete · MemorySearch · MemoryList · Agent · SendMessage · CheckAgentResult · ListAgentTasks · ListAgentTypes · Skill · SkillList · AskUserQuestion · TaskCreate/Update/Get/List · **SleepTimer** · **EnterPlanMode** · **ExitPlanMode** · *(MCP + plugin tools auto-added at startup)* |
@@ -389,6 +389,10 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 | **Zhipu (GLM)** | `glm-4-flash` | 128k | Free tier available | `ZHIPU_API_KEY` |
 | **DeepSeek** | `deepseek-chat` | 64k | Strong coding | `DEEPSEEK_API_KEY` |
 | **DeepSeek** | `deepseek-reasoner` | 64k | Chain-of-thought reasoning | `DEEPSEEK_API_KEY` |
+| **MiniMax** | `MiniMax-Text-01` | 1M | Long context, strong reasoning | `MINIMAX_API_KEY` |
+| **MiniMax** | `MiniMax-VL-01` | 1M | Vision + language | `MINIMAX_API_KEY` |
+| **MiniMax** | `abab6.5s-chat` | 256k | Fast, cost-efficient | `MINIMAX_API_KEY` |
+| **MiniMax** | `abab6.5-chat` | 256k | Balanced quality | `MINIMAX_API_KEY` |
 
 ### Open-Source (Local via Ollama)
 
@@ -554,6 +558,18 @@ export DEEPSEEK_API_KEY=sk-...
 
 cheetahclaws --model deepseek/deepseek-chat
 cheetahclaws --model deepseek/deepseek-reasoner
+```
+
+### MiniMax
+
+Get your API key at [platform.minimaxi.chat](https://platform.minimaxi.chat).
+
+```bash
+export MINIMAX_API_KEY=...
+
+cheetahclaws --model minimax/MiniMax-Text-01
+cheetahclaws --model minimax/MiniMax-VL-01
+cheetahclaws --model minimax/abab6.5s-chat
 ```
 
 ---
@@ -743,6 +759,7 @@ cheetahclaws --model qwen:qwen-max
 | `qwen`, `qwq-` | qwen |
 | `glm-` | zhipu |
 | `deepseek-` | deepseek |
+| `MiniMax-`, `minimax-`, `abab` | minimax |
 | `llama`, `mistral`, `phi`, `gemma`, `mixtral`, `codellama` | ollama |
 
 ---
@@ -899,6 +916,7 @@ export MOONSHOT_API_KEY=sk-...       # Kimi
 export DASHSCOPE_API_KEY=sk-...      # Qwen
 export ZHIPU_API_KEY=...             # Zhipu GLM
 export DEEPSEEK_API_KEY=sk-...       # DeepSeek
+export MINIMAX_API_KEY=...           # MiniMax
 ```
 
 ### Method 2: Set Inside the REPL (persisted)
@@ -911,6 +929,7 @@ export DEEPSEEK_API_KEY=sk-...       # DeepSeek
 /config qwen_api_key=sk-...
 /config zhipu_api_key=...
 /config deepseek_api_key=sk-...
+/config minimax_api_key=...
 ```
 
 Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next launch.
@@ -927,7 +946,8 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
   "thinking": false,
   "qwen_api_key": "sk-...",
   "kimi_api_key": "sk-...",
-  "deepseek_api_key": "sk-..."
+  "deepseek_api_key": "sk-...",
+  "minimax_api_key": "..."
 }
 ```
 
