@@ -139,15 +139,36 @@ def make_snapshot(
     for path, fb in prev_backups.items():
         new_backups[path] = fb
 
-    # Add/update files that were edited this turn
+    # Add/update files that were edited this turn — back up their CURRENT state
     if tracked_edits:
-        for path, backup_filename in tracked_edits.items():
-            version = _file_versions.get(path, 0)
-            new_backups[path] = FileBackup(
-                backup_filename=backup_filename,
-                version=version,
-                backup_time=now,
-            )
+        for path in tracked_edits:
+            p = Path(path)
+            if p.exists():
+                try:
+                    size = p.stat().st_size
+                except OSError:
+                    continue
+                if size > _MAX_FILE_SIZE:
+                    continue
+                version = _next_version(path)
+                backup_name = f"{_path_hash(path)}@v{version}"
+                bdir = _backups_dir(session_id)
+                try:
+                    shutil.copy2(str(p), str(bdir / backup_name))
+                except Exception:
+                    continue
+                new_backups[path] = FileBackup(
+                    backup_filename=backup_name,
+                    version=version,
+                    backup_time=now,
+                )
+            else:
+                # File was deleted during the turn (unlikely but possible)
+                new_backups[path] = FileBackup(
+                    backup_filename=None,
+                    version=_file_versions.get(path, 0),
+                    backup_time=now,
+                )
 
     next_id = (snapshots[-1].id + 1) if snapshots else 1
 
@@ -183,6 +204,7 @@ def list_snapshots(session_id: str) -> list[dict]:
         result.append({
             "id": s.id,
             "turn_count": s.turn_count,
+            "message_index": s.message_index,
             "created_at": s.created_at,
             "user_prompt_preview": s.user_prompt_preview,
             "file_count": len(s.file_backups),

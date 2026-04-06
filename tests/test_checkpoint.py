@@ -137,14 +137,14 @@ class TestStore:
         )
         assert str(test_file) in snap1.file_backups
 
-        # Second snapshot — no edits, should carry forward
+        # Second snapshot — no edits, should carry forward the same file reference
         state.messages.append({"role": "user", "content": "b"})
         state.turn_count = 2
         snap2 = store.make_snapshot("sess1", state, {}, "second", tracked_edits=None)
         assert snap2.id == 2
         assert str(test_file) in snap2.file_backups
-        # Same backup reference carried forward
-        assert snap2.file_backups[str(test_file)].backup_filename == backup_name
+        # Carried forward from snap1 (same backup since no edits)
+        assert snap2.file_backups[str(test_file)].backup_filename == snap1.file_backups[str(test_file)].backup_filename
 
     def test_list_snapshots(self, tmp_home):
         from checkpoint import store
@@ -361,3 +361,98 @@ class TestIntegration:
         state.turn_count = snap.turn_count
         assert len(state.messages) == 2
         assert state.turn_count == 1
+
+    def test_initial_snapshot(self, tmp_home):
+        """Initial snapshot should be id=1 with empty messages and prompt '(initial state)'."""
+        from checkpoint import store
+
+        state = FakeState(messages=[], turn_count=0)
+        snap = store.make_snapshot("init_test", state, {}, "(initial state)", tracked_edits=None)
+        assert snap.id == 1
+        assert snap.message_index == 0
+        assert snap.turn_count == 0
+        assert snap.user_prompt_preview == "(initial state)"
+        assert snap.file_backups == {}
+
+    def test_throttle_skips_when_no_changes(self, tmp_home):
+        """Snapshot should be skipped when no files changed and message_index is same."""
+        from checkpoint import store
+
+        state = FakeState(messages=[], turn_count=0)
+        # Initial snapshot
+        store.make_snapshot("throttle_test", state, {}, "(initial state)")
+
+        # Same state, no tracked edits — should be skippable
+        snaps = store.list_snapshots("throttle_test")
+        assert len(snaps) == 1
+        last_msg_idx = snaps[-1].get("message_index", -1)
+        # Simulate throttle check: no tracked edits + same message count → skip
+        assert len(state.messages) == last_msg_idx  # would skip
+
+    def test_throttle_creates_when_messages_grew(self, tmp_home):
+        """Snapshot should be created when messages grew even without file changes."""
+        from checkpoint import store
+
+        state = FakeState(messages=[], turn_count=0)
+        store.make_snapshot("throttle2", state, {}, "(initial state)")
+
+        # Messages grew (a turn happened)
+        state.messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi"},
+        ]
+        state.turn_count = 1
+
+        snaps_before = store.list_snapshots("throttle2")
+        last_msg_idx = snaps_before[-1].get("message_index", -1)
+        # message count changed → should NOT skip
+        assert len(state.messages) != last_msg_idx
+
+        store.make_snapshot("throttle2", state, {}, "hello", tracked_edits=None)
+        snaps_after = store.list_snapshots("throttle2")
+        assert len(snaps_after) == 2
+
+    def test_throttle_conversation_rewind_works(self, tmp_home):
+        """After throttled snapshots, conversation rewind via message_index still works."""
+        from checkpoint import store
+
+        state = FakeState(messages=[], turn_count=0)
+        # Snap 1: initial
+        store.make_snapshot("rewind_conv", state, {}, "(initial state)")
+
+        # Snap 2: first turn (no files, but messages grew)
+        state.messages = [
+            {"role": "user", "content": "do something"},
+            {"role": "assistant", "content": "done"},
+        ]
+        state.turn_count = 1
+        store.make_snapshot("rewind_conv", state, {}, "do something")
+
+        # Snap 3: second turn (no files, messages grew again)
+        state.messages.extend([
+            {"role": "user", "content": "do more"},
+            {"role": "assistant", "content": "more done"},
+        ])
+        state.turn_count = 2
+        store.make_snapshot("rewind_conv", state, {}, "do more")
+
+        # Verify we have 3 snapshots
+        snaps = store.list_snapshots("rewind_conv")
+        assert len(snaps) == 3
+
+        # Rewind conversation to snap 2
+        snap2 = store.get_snapshot("rewind_conv", 2)
+        assert snap2.message_index == 2
+        state.messages = state.messages[:snap2.message_index]
+        state.turn_count = snap2.turn_count
+        assert len(state.messages) == 2
+        assert state.messages[-1]["content"] == "done"
+        assert state.turn_count == 1
+
+        # Rewind to snap 1 (initial)
+        snap1 = store.get_snapshot("rewind_conv", 1)
+        assert snap1.message_index == 0
+        state.messages = state.messages[:snap1.message_index]
+        state.turn_count = snap1.turn_count
+        assert len(state.messages) == 0
+        assert state.turn_count == 0

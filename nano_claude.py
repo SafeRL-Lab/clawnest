@@ -2106,6 +2106,8 @@ def repl(config: dict, initial_prompt: str = None):
     config["_session_id"] = session_id
     ckpt.set_session(session_id)
     ckpt.cleanup_old_sessions()
+    # Initial snapshot: capture the "blank slate" before any prompts
+    ckpt.make_snapshot(session_id, state, {}, "(initial state)", tracked_edits=None)
 
     # Banner
     if not initial_prompt:
@@ -2301,7 +2303,15 @@ def repl(config: dict, initial_prompt: str = None):
         # ── Auto-snapshot after each turn ──
         try:
             tracked = ckpt.get_tracked_edits()
-            ckpt.make_snapshot(session_id, state, config, user_input, tracked_edits=tracked)
+            # Throttle: skip snapshot only if no files changed AND no new messages
+            # (conversation rewind always needs message_index updates)
+            last_snaps = ckpt.list_snapshots(session_id)
+            skip = False
+            if not tracked and last_snaps:
+                if len(state.messages) == last_snaps[-1].get("message_index", -1):
+                    skip = True
+            if not skip:
+                ckpt.make_snapshot(session_id, state, config, user_input, tracked_edits=tracked)
             ckpt.reset_tracked()
         except Exception:
             pass  # never let checkpoint errors break the REPL
