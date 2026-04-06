@@ -692,8 +692,8 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/cloudsave auto on\|off` | Toggle auto-upload on `/exit` |
 | `/cloudsave list` | List your nano-claude-code Gists |
 | `/cloudsave load <gist_id>` | Download and restore a session from Gist |
-| `/brainstorm` | Run a multi-persona AI brainstorm on the current project (general improvement) |
-| `/brainstorm <topic>` | Focus the brainstorm on a specific topic or question |
+| `/brainstorm` | Run a multi-persona AI brainstorm; prompts for agent count (2–100, default 5) |
+| `/brainstorm <topic>` | Focus the brainstorm on a specific topic; prompts for agent count |
 | `/exit` / `/quit` | Exit |
 
 **Switching models inside a session:**
@@ -1440,8 +1440,13 @@ These are passed as Whisper's `initial_prompt` so the STT engine prefers correct
 
 ```
 [myproject] ❯ /brainstorm
+  How many agents? (2-10, default 5) > 5
+
 [myproject] ❯ /brainstorm improve plugin architecture
-[myproject] ❯ /brainstorm security review before release
+  How many agents? (2-10, default 5) > 3
+
+[myproject] ❯ /brainstorm US-Iran geopolitics
+  How many agents? (2-10, default 5) > 7
 ```
 
 ### Example output

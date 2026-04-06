@@ -319,20 +319,20 @@ def cmd_model(args: str, _state, config) -> bool:
         save_config(config)
     return True
 
-def _generate_personas(topic: str, curr_model: str, config: dict) -> dict | None:
-    """Ask the LLM to generate 5 topic-appropriate expert personas as a dict."""
+def _generate_personas(topic: str, curr_model: str, config: dict, count: int = 5) -> dict | None:
+    """Ask the LLM to generate `count` topic-appropriate expert personas as a dict."""
     from providers import stream, TextChunk
     import json
 
-    user_msg = f"""Generate 5 expert personas for a multi-perspective brainstorming debate on: "{topic}"
+    example_entries = "\n".join(
+        f'  "p{i+1}": {{"icon": "emoji", "role": "Expert Title", "desc": "One sentence describing their analytical angle."}}'
+        for i in range(count)
+    )
+    user_msg = f"""Generate {count} expert personas for a multi-perspective brainstorming debate on: "{topic}"
 
 Return ONLY a valid JSON object — no markdown fences, no extra text — like this:
 {{
-  "p1": {{"icon": "🌍", "role": "Expert Title", "desc": "One sentence describing their analytical angle."}},
-  "p2": {{"icon": "💰", "role": "Expert Title", "desc": "One sentence describing their analytical angle."}},
-  "p3": {{"icon": "⚖️", "role": "Expert Title", "desc": "One sentence describing their analytical angle."}},
-  "p4": {{"icon": "🔬", "role": "Expert Title", "desc": "One sentence describing their analytical angle."}},
-  "p5": {{"icon": "📊", "role": "Expert Title", "desc": "One sentence describing their analytical angle."}}
+{example_entries}
 }}
 
 Choose experts whose domains are most relevant to analyzing "{topic}" from different angles."""
@@ -427,6 +427,14 @@ def cmd_brainstorm(args: str, state, config) -> bool:
     project_files = "\n".join([f.name for f in Path(".").glob("*") if f.is_file() and not f.name.startswith(".")])
     
     user_topic = args.strip() or "general project improvement and architectural evolution"
+
+    # ── Ask user for agent count interactively ────────────────────────────
+    try:
+        ans = input(clr(f"  How many agents? (2-100, default 5) > ", "cyan")).strip()
+        agent_count = int(ans) if ans else 5
+        agent_count = max(2, min(agent_count, 100))
+    except (ValueError, KeyboardInterrupt, EOFError):
+        agent_count = 5
     
     snapshot = f"""PROJECT CONTEXT:
 README:
@@ -443,11 +451,11 @@ USER FOCUS: {user_topic}
     curr_model = config["model"]
 
     # ── Personas (dynamically generated per topic) ────────────────────────
-    info(clr("Generating topic-appropriate expert personas...", "dim"))
-    personas = _generate_personas(user_topic, curr_model, config)
+    info(clr(f"Generating {agent_count} topic-appropriate expert personas...", "dim"))
+    personas = _generate_personas(user_topic, curr_model, config, count=agent_count)
     if not personas:
         info(clr("(persona generation failed, using default tech personas)", "dim"))
-        personas = _TECH_PERSONAS
+        personas = dict(list(_TECH_PERSONAS.items())[:agent_count])
     
     # ── Identity Generator ────────────────────────────────────────────────
     def get_identity(letter):
@@ -469,7 +477,7 @@ USER FOCUS: {user_topic}
     
     brainstorm_history = []
     
-    ok(f"Starting Multi-Agent Brainstorming Session on: {clr(user_topic, 'bold')}")
+    ok(f"Starting {agent_count}-Agent Brainstorming Session on: {clr(user_topic, 'bold')}")
     info(clr("Generating diverse perspectives...", "dim"))
 
     # Helper function to call the model via the unified stream() function
