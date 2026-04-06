@@ -2182,6 +2182,215 @@ def cmd_status(args: str, state, config) -> bool:
     return True
 
 
+def cmd_doctor(args: str, state, config) -> bool:
+    """Diagnose installation health and connectivity.
+
+    /doctor   — run all health checks
+    """
+    import subprocess as _sp
+    import sys as _sys
+    from providers import PROVIDERS, detect_provider, get_api_key
+
+    ok_n = warn_n = fail_n = 0
+
+    def _print_safe(s):
+        try:
+            print(s)
+        except UnicodeEncodeError:
+            print(s.encode("ascii", errors="replace").decode())
+
+    def ok(msg):
+        nonlocal ok_n; ok_n += 1
+        _print_safe(clr("  [PASS] ", "green") + msg)
+
+    def warn(msg):
+        nonlocal warn_n; warn_n += 1
+        _print_safe(clr("  [WARN] ", "yellow") + msg)
+
+    def fail(msg):
+        nonlocal fail_n; fail_n += 1
+        _print_safe(clr("  [FAIL] ", "red") + msg)
+
+    info("Running diagnostics...")
+    print()
+
+    # ── 1. Python version ──
+    v = _sys.version_info
+    if v >= (3, 10):
+        ok(f"Python {v.major}.{v.minor}.{v.micro}")
+    else:
+        fail(f"Python {v.major}.{v.minor}.{v.micro} (need ≥3.10)")
+
+    # ── 2. Git ──
+    try:
+        r = _sp.run(["git", "--version"], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            ok(f"Git: {r.stdout.strip()}")
+        else:
+            fail("Git: not working")
+    except Exception:
+        fail("Git: not found")
+
+    try:
+        r = _sp.run(["git", "rev-parse", "--is-inside-work-tree"],
+                     capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            ok("Inside a git repository")
+        else:
+            warn("Not inside a git repository")
+    except Exception:
+        warn("Could not check git repo status")
+
+    # ── 3. Current model + API key ──
+    model = config.get("model", "")
+    provider = detect_provider(model)
+    key = get_api_key(provider, config)
+
+    if key:
+        ok(f"API key for {provider}: set ({key[:4]}...{key[-4:]})")
+    elif provider in ("ollama", "lmstudio"):
+        ok(f"Provider {provider}: no key needed (local)")
+    else:
+        fail(f"API key for {provider}: NOT SET")
+
+    # ── 4. API connectivity test ──
+    if key or provider in ("ollama", "lmstudio"):
+        print(f"  ... testing {provider} API connectivity...")
+        try:
+            import urllib.request, urllib.error
+            prov = PROVIDERS.get(provider, {})
+            ptype = prov.get("type", "openai")
+
+            if ptype == "anthropic":
+                req = urllib.request.Request(
+                    "https://api.anthropic.com/v1/messages",
+                    data=json.dumps({
+                        "model": model,
+                        "max_tokens": 1,
+                        "messages": [{"role": "user", "content": "hi"}],
+                    }).encode(),
+                    headers={
+                        "x-api-key": key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                )
+                try:
+                    urllib.request.urlopen(req, timeout=10)
+                    ok(f"Anthropic API: reachable, model {model} works")
+                except urllib.error.HTTPError as e:
+                    if e.code == 401:
+                        fail("Anthropic API: invalid API key (401)")
+                    elif e.code == 404:
+                        fail(f"Anthropic API: model {model} not found (404)")
+                    elif e.code == 429:
+                        warn("Anthropic API: rate limited (429) — key is valid")
+                    else:
+                        warn(f"Anthropic API: HTTP {e.code}")
+                except Exception as e:
+                    fail(f"Anthropic API: connection error — {e}")
+
+            elif ptype == "ollama":
+                base = prov.get("base_url", "http://localhost:11434")
+                try:
+                    urllib.request.urlopen(f"{base}/api/tags", timeout=5)
+                    ok(f"Ollama: reachable at {base}")
+                except Exception:
+                    fail(f"Ollama: cannot reach {base} — is Ollama running?")
+
+            else:
+                base = prov.get("base_url", "")
+                if provider == "custom":
+                    base = config.get("custom_base_url", base or "")
+                if base:
+                    models_url = base.rstrip("/") + "/models"
+                    req = urllib.request.Request(
+                        models_url,
+                        headers={"Authorization": f"Bearer {key}"},
+                    )
+                    try:
+                        urllib.request.urlopen(req, timeout=10)
+                        ok(f"{provider} API: reachable")
+                    except urllib.error.HTTPError as e:
+                        if e.code == 401:
+                            fail(f"{provider} API: invalid API key (401)")
+                        elif e.code == 429:
+                            warn(f"{provider} API: rate limited (429) — key is valid")
+                        else:
+                            warn(f"{provider} API: HTTP {e.code}")
+                    except Exception as e:
+                        fail(f"{provider} API: connection error — {e}")
+                else:
+                    warn(f"{provider}: no base_url configured")
+        except Exception as e:
+            warn(f"API test skipped: {e}")
+
+    # ── 5. Other configured API keys ──
+    print()
+    for pname, pdata in PROVIDERS.items():
+        if pname == provider:
+            continue
+        env_var = pdata.get("api_key_env")
+        if env_var and os.environ.get(env_var, ""):
+            ok(f"{pname} key ({env_var}): set")
+
+    # ── 6. Optional dependencies ──
+    print()
+    for mod, desc in [
+        ("rich", "Rich (live markdown rendering)"),
+        ("PIL", "Pillow (clipboard image /image)"),
+        ("sounddevice", "sounddevice (voice recording)"),
+        ("faster_whisper", "faster-whisper (local STT)"),
+    ]:
+        try:
+            __import__(mod)
+            ok(desc)
+        except ImportError:
+            warn(f"{desc}: not installed")
+
+    # ── 7. CLAUDE.md ──
+    print()
+    claude_md = Path.cwd() / "CLAUDE.md"
+    global_md = Path.home() / ".claude" / "CLAUDE.md"
+    if claude_md.exists():
+        ok(f"Project CLAUDE.md: {claude_md}")
+    else:
+        warn("No project CLAUDE.md (run /init to create)")
+    if global_md.exists():
+        ok(f"Global CLAUDE.md: {global_md}")
+
+    # ── 8. Checkpoints disk usage ──
+    ckpt_root = Path.home() / ".nano_claude" / "checkpoints"
+    if ckpt_root.exists():
+        total = sum(f.stat().st_size for f in ckpt_root.rglob("*") if f.is_file())
+        mb = total / (1024 * 1024)
+        sessions = sum(1 for d in ckpt_root.iterdir() if d.is_dir())
+        if mb > 100:
+            warn(f"Checkpoints: {mb:.1f} MB ({sessions} sessions)")
+        else:
+            ok(f"Checkpoints: {mb:.1f} MB ({sessions} sessions)")
+
+    # ── 9. Permission mode ──
+    perm = config.get("permission_mode", "auto")
+    if perm == "accept-all":
+        warn(f"Permission mode: {perm} (all operations auto-approved)")
+    else:
+        ok(f"Permission mode: {perm}")
+
+    # ── Summary ──
+    print()
+    total = ok_n + warn_n + fail_n
+    summary = f"  {ok_n} passed, {warn_n} warnings, {fail_n} failures ({total} checks)"
+    if fail_n:
+        _print_safe(clr(summary, "red"))
+    elif warn_n:
+        _print_safe(clr(summary, "yellow"))
+    else:
+        _print_safe(clr(summary, "green"))
+
+    return True
+
+
 COMMANDS = {
     "help":        cmd_help,
     "clear":       cmd_clear,
@@ -2216,6 +2425,7 @@ COMMANDS = {
     "export":      cmd_export,
     "copy":        cmd_copy,
     "status":      cmd_status,
+    "doctor":      cmd_doctor,
     "exit":        cmd_exit,
     "quit":        cmd_exit,
     "resume":      cmd_resume
@@ -2291,6 +2501,7 @@ _CMD_META: dict[str, tuple[str, list[str]]] = {
     "export":      ("Export conversation to file",          []),
     "copy":        ("Copy last response to clipboard",      []),
     "status":      ("Show session status and model info",   []),
+    "doctor":      ("Diagnose installation health",         []),
     "exit":        ("Exit nano-claude-code",              []),
     "quit":        ("Exit (alias for /exit)",             []),
     "resume":      ("Resume last session",                []),
