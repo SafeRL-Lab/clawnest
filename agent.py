@@ -168,6 +168,12 @@ def run(
 def _check_permission(tc: dict, config: dict) -> bool:
     """Return True if operation is auto-approved (no need to ask user)."""
     perm_mode = config.get("permission_mode", "auto")
+    name = tc["name"]
+
+    # Plan mode tools are always auto-approved
+    if name in ("EnterPlanMode", "ExitPlanMode"):
+        return True
+
     if perm_mode == "accept-all":
         return True
     if perm_mode == "manual":

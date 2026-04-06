@@ -63,6 +63,12 @@ Use these tools to track multi-step work or execute background timers:
 
 **Workflow:** Break multi-step plans into tasks at the start → mark in_progress when starting each → mark completed when done → use TaskList to review remaining work.
 
+## Planning
+- **EnterPlanMode**: Enter plan mode for complex tasks. In plan mode you can only read the codebase and write to a plan file. Use this BEFORE starting implementation on any non-trivial task.
+- **ExitPlanMode**: Exit plan mode and request user approval of your plan. The user must approve before you can write code.
+
+**When to use plan mode:** Use EnterPlanMode when facing tasks that involve multiple files, architectural decisions, unclear requirements, or significant refactoring. Do NOT use it for simple single-file fixes or quick changes. The workflow is: EnterPlanMode → analyze codebase → write plan → ExitPlanMode → user approves → implement.
+
 ## Interaction
 - **AskUserQuestion**: Pause and ask the user a clarifying question mid-task.
   Use when you need a decision before proceeding. Supports optional choices list.

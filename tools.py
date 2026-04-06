@@ -1086,3 +1086,114 @@ import task.tools as _task_tools  # noqa: F401
 # ── Checkpoint hooks (backup files before Write/Edit/NotebookEdit) ───────────
 from checkpoint.hooks import install_hooks as _install_checkpoint_hooks
 _install_checkpoint_hooks()
+
+
+# ── Plan mode tools (EnterPlanMode / ExitPlanMode) ──────────────────────────
+
+def _enter_plan_mode(params: dict, config: dict) -> str:
+    """Enter plan mode: read-only except plan file."""
+    if config.get("permission_mode") == "plan":
+        return "Already in plan mode. Write your plan to the plan file, then call ExitPlanMode."
+
+    session_id = config.get("_session_id", "default")
+    plans_dir = Path.cwd() / ".nano_claude" / "plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    plan_path = plans_dir / f"{session_id}.md"
+
+    task_desc = params.get("task_description", "")
+    if not plan_path.exists() or plan_path.stat().st_size == 0:
+        header = f"# Plan: {task_desc}\n\n" if task_desc else "# Plan\n\n"
+        plan_path.write_text(header, encoding="utf-8")
+
+    config["_prev_permission_mode"] = config.get("permission_mode", "auto")
+    config["permission_mode"] = "plan"
+    config["_plan_file"] = str(plan_path)
+
+    return (
+        f"Plan mode activated. You are now in read-only mode.\n"
+        f"Plan file: {plan_path}\n\n"
+        f"Instructions:\n"
+        f"1. Analyze the codebase using Read, Glob, Grep, WebSearch\n"
+        f"2. Write your detailed implementation plan to the plan file using Write or Edit\n"
+        f"3. When the plan is ready, call ExitPlanMode to request user approval\n"
+        f"4. Do NOT attempt to write to any other files — they will be blocked"
+    )
+
+
+def _exit_plan_mode(params: dict, config: dict) -> str:
+    """Exit plan mode and present plan for user approval."""
+    if config.get("permission_mode") != "plan":
+        return "Not in plan mode. Use EnterPlanMode first."
+
+    plan_file = config.get("_plan_file", "")
+    plan_content = ""
+    if plan_file:
+        p = Path(plan_file)
+        if p.exists():
+            plan_content = p.read_text(encoding="utf-8").strip()
+
+    if not plan_content or plan_content == "# Plan":
+        return "Plan file is empty. Write your plan to the plan file before calling ExitPlanMode."
+
+    # Restore permissions
+    prev = config.pop("_prev_permission_mode", "auto")
+    config["permission_mode"] = prev
+
+    return (
+        f"Plan mode exited. Permission mode restored to: {prev}\n"
+        f"Plan file: {plan_file}\n\n"
+        f"The plan is ready for the user to review. "
+        f"Wait for the user to approve before starting implementation.\n\n"
+        f"--- Plan Content ---\n{plan_content}"
+    )
+
+
+_PLAN_MODE_SCHEMAS = [
+    {
+        "name": "EnterPlanMode",
+        "description": (
+            "Enter plan mode to analyze the codebase and create an implementation plan "
+            "before writing code. Use this for complex, multi-file tasks. "
+            "In plan mode, only the plan file is writable; all other writes are blocked."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_description": {
+                    "type": "string",
+                    "description": "Brief description of the task to plan for",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "ExitPlanMode",
+        "description": (
+            "Exit plan mode and present the plan for user approval. "
+            "Call this after writing your implementation plan to the plan file. "
+            "The user must approve the plan before you begin implementation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+]
+
+register_tool(ToolDef(
+    name="EnterPlanMode",
+    schema=_PLAN_MODE_SCHEMAS[0],
+    func=_enter_plan_mode,
+    read_only=False,
+    concurrent_safe=False,
+))
+
+register_tool(ToolDef(
+    name="ExitPlanMode",
+    schema=_PLAN_MODE_SCHEMAS[1],
+    func=_exit_plan_mode,
+    read_only=False,
+    concurrent_safe=False,
+))
