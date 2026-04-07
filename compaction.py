@@ -38,11 +38,17 @@ def estimate_tokens(messages: list) -> int:
 def get_context_limit(model: str) -> int:
     """Look up context window size for a model.
 
+    Checks per-model overrides first, then falls back to provider-level default.
+
     Args:
         model: model string (e.g. "claude-opus-4-6", "ollama/llama3.3")
     Returns:
         context limit in tokens
     """
+    model_name = providers.bare_model(model)
+    # Per-model override takes priority
+    if model_name in providers.MODEL_CONTEXT_LIMITS:
+        return providers.MODEL_CONTEXT_LIMITS[model_name]
     provider_name = providers.detect_provider(model)
     prov = providers.PROVIDERS.get(provider_name, {})
     return prov.get("context_limit", 128000)

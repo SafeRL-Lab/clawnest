@@ -3,8 +3,8 @@ Multi-provider support for nano claude.
 
 Supported providers:
   anthropic  — Claude (claude-opus-4-6, claude-sonnet-4-6, ...)
-  openai     — GPT (gpt-4o, o3-mini, ...)
-  gemini     — Google Gemini (gemini-2.0-flash, gemini-1.5-pro, ...)
+  openai     — GPT (gpt-5.4, gpt-5.4-mini, gpt-4o, o3-mini, ...)
+  gemini     — Google Gemini (gemini-3.1-pro, gemini-3-flash, ...)
   kimi       — Moonshot AI (moonshot-v1-8k/32k/128k)
   qwen       — Alibaba DashScope (qwen-max, qwen-plus, ...)
   zhipu      — Zhipu GLM (glm-4, glm-4-plus, ...)
@@ -41,9 +41,16 @@ PROVIDERS: dict[str, dict] = {
         "type":       "openai",
         "api_key_env": "OPENAI_API_KEY",
         "base_url":   "https://api.openai.com/v1",
-        "context_limit": 128000,
+        "context_limit": 1050000,
         "max_completion_tokens": 16384,  # safe cap across gpt-4o/gpt-4.1 family
         "models": [
+            # GPT-5.x
+            "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
+            "gpt-5.3-codex", "gpt-5.3-codex-spark",
+            "gpt-5.2", "gpt-5.2-codex",
+            "gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-mini",
+            "gpt-5", "gpt-5-codex", "gpt-5-codex-mini",
+            # GPT-4.x
             "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini",
             "o3-mini", "o1", "o1-mini",
         ],
@@ -52,8 +59,12 @@ PROVIDERS: dict[str, dict] = {
         "type":       "openai",
         "api_key_env": "GEMINI_API_KEY",
         "base_url":   "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "context_limit": 1000000,
+        "context_limit": 1048576,
         "models": [
+            # Gemini 3.x
+            "gemini-3.1-pro-preview", "gemini-3.1-pro-preview-customtools",
+            "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview",
+            # Gemini 2.x (legacy)
             "gemini-2.5-pro-preview-03-25",
             "gemini-2.0-flash", "gemini-2.0-flash-lite",
             "gemini-1.5-pro", "gemini-1.5-flash",
@@ -129,15 +140,32 @@ PROVIDERS: dict[str, dict] = {
 
 # Cost per million tokens (approximate, fallback to 0 for unknown)
 COSTS = {
+    # Anthropic
     "claude-opus-4-6":          (15.0, 75.0),
     "claude-sonnet-4-6":        (3.0,  15.0),
     "claude-haiku-4-5-20251001": (0.8,  4.0),
+    # OpenAI GPT-5.x
+    "gpt-5.4":                  (2.5,  15.0),
+    "gpt-5.4-mini":             (0.75,  4.5),
+    "gpt-5.4-nano":             (0.20,  1.25),
+    "gpt-5.3-codex":            (1.75, 14.0),
+    "gpt-5.2":                  (1.75, 14.0),
+    "gpt-5.1":                  (1.25, 10.0),
+    "gpt-5":                    (1.25, 10.0),
+    # OpenAI legacy
     "gpt-4o":                   (2.5,  10.0),
     "gpt-4o-mini":              (0.15,  0.6),
     "o3-mini":                  (1.1,   4.4),
+    # Gemini 3.x
+    "gemini-3.1-pro-preview":   (2.0,  12.0),
+    "gemini-3.1-pro-preview-customtools": (2.0, 12.0),
+    "gemini-3-flash-preview":   (0.5,   3.0),
+    "gemini-3.1-flash-lite-preview": (0.25, 1.5),
+    # Gemini 2.x (legacy)
+    "gemini-2.5-pro-preview-03-25": (1.25, 10.0),
     "gemini-2.0-flash":         (0.075, 0.3),
     "gemini-1.5-pro":           (1.25,  5.0),
-    "gemini-2.5-pro-preview-03-25": (1.25, 10.0),
+    # Chinese providers
     "moonshot-v1-8k":           (1.0,   3.0),
     "moonshot-v1-32k":          (2.4,   7.0),
     "moonshot-v1-128k":         (8.0,  24.0),
@@ -146,6 +174,35 @@ COSTS = {
     "deepseek-chat":            (0.27,  1.1),
     "deepseek-reasoner":        (0.55,  2.19),
     "glm-4-plus":               (0.7,   0.7),
+}
+
+# Per-model context limits (overrides provider-level context_limit)
+MODEL_CONTEXT_LIMITS = {
+    # GPT-5.4 has 1.05M, others in the family are 400K
+    "gpt-5.4":              1050000,
+    "gpt-5.4-mini":          400000,
+    "gpt-5.4-nano":          400000,
+    "gpt-5.3-codex":         400000,
+    "gpt-5.3-codex-spark":   400000,
+    "gpt-5.2":               400000,
+    "gpt-5.2-codex":         400000,
+    "gpt-5.1":               400000,
+    "gpt-5.1-codex":         400000,
+    "gpt-5.1-codex-mini":    400000,
+    "gpt-5":                 400000,
+    "gpt-5-codex":           400000,
+    "gpt-5-codex-mini":      400000,
+    # Legacy OpenAI
+    "gpt-4.1":               1047576,
+    "gpt-4.1-mini":          1047576,
+    "gpt-4o":                128000,
+    "gpt-4o-mini":           128000,
+    "gpt-4-turbo":           128000,
+    "o3-mini":               200000,
+    "o1":                    200000,
+    "o1-mini":               128000,
+    # Gemini Live has smaller context
+    "gemini-3.1-flash-live-preview": 131072,
 }
 
 # Auto-detection: prefix → provider name

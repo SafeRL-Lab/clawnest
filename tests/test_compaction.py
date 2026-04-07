@@ -72,7 +72,7 @@ class TestGetContextLimit:
         assert get_context_limit("claude-opus-4-6") == 200000
 
     def test_gemini(self):
-        assert get_context_limit("gemini-2.0-flash") == 1000000
+        assert get_context_limit("gemini-2.0-flash") == 1048576
 
     def test_deepseek(self):
         assert get_context_limit("deepseek-chat") == 64000
@@ -80,12 +80,21 @@ class TestGetContextLimit:
     def test_openai(self):
         assert get_context_limit("gpt-4o") == 128000
 
+    def test_gpt5_context_limits(self):
+        assert get_context_limit("gpt-5.4") == 1050000
+        assert get_context_limit("gpt-5.4-mini") == 400000
+        assert get_context_limit("gpt-5.1") == 400000
+
+    def test_gemini3_context_limits(self):
+        assert get_context_limit("gemini-3.1-pro-preview") == 1048576
+        assert get_context_limit("gemini-3-flash-preview") == 1048576
+
     def test_qwen(self):
         assert get_context_limit("qwen-max") == 1000000
 
     def test_unknown_model_fallback(self):
-        # Unknown models fall back to openai provider which has 128000
-        assert get_context_limit("some-random-model-xyz") == 128000
+        # Unknown models fall back to openai provider which has 1050000
+        assert get_context_limit("some-random-model-xyz") == 1050000
 
     def test_explicit_provider_prefix(self):
         assert get_context_limit("ollama/llama3.3") == 128000
