@@ -61,7 +61,7 @@ Slash commands in REPL:
 """
 from __future__ import annotations
 
-from tools import ask_input_interactive
+from tools import ask_input_interactive, _tg_thread_local, _is_in_tg_turn
 
 import os
 import re
@@ -332,8 +332,7 @@ def ask_permission_interactive(desc: str, config: dict) -> bool:
 
     if text == "a" or text == "accept all" or text == "accept-all":
         config["permission_mode"] = "accept-all"
-        is_tg = config.get("_in_telegram_turn", False)
-        if is_tg:
+        if _is_in_tg_turn(config):
             token = config.get("telegram_token")
             chat_id = config.get("telegram_chat_id")
             _tg_send(token, chat_id, "✅ Permission mode set to accept-all for this session.")
@@ -2133,14 +2132,16 @@ def _tg_poll_loop(token: str, chat_id: int, config: dict):
                     slash_cb = config.get("_handle_slash_callback")
                     if slash_cb:
                         def _slash_runner(_slash_text, _token, _chat_id):
+                            # Use thread-local flag so we don't race with the
+                            # poll loop or the main REPL modifying config.
+                            _tg_thread_local.active = True
                             try:
-                                config["_in_telegram_turn"] = True
                                 cmd_type = slash_cb(_slash_text)
-                                config.pop("_in_telegram_turn", None)
                             except Exception as e:
                                 _tg_send(_token, _chat_id, f"⚠ Error: {e}")
-                                config.pop("_in_telegram_turn", None)
                                 return
+                            finally:
+                                _tg_thread_local.active = False
                             # Simple commands (toggle, etc.) — just confirm
                             if cmd_type == "simple":
                                 cmd_name = _slash_text.strip().split()[0]

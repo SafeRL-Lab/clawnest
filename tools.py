@@ -17,6 +17,21 @@ from tool_registry import execute_tool as _registry_execute
 _pending_questions: list[dict] = []   # [{id, question, options, allow_freetext, event, result_holder}]
 _ask_lock = threading.Lock()
 
+# ── Telegram turn detection (thread-local) ─────────────────────────────────
+# Using thread-local storage instead of a shared config key prevents race
+# conditions when slash commands run in their own daemon threads while the
+# Telegram poll loop and the main REPL loop continue on other threads.
+_tg_thread_local = threading.local()
+
+
+def _is_in_tg_turn(config: dict) -> bool:
+    """Return True if the *current thread* is handling a Telegram interaction.
+
+    Checks the thread-local flag first (set by the slash-command runner thread),
+    then falls back to the config key (set by the main REPL for _bg_runner turns).
+    """
+    return getattr(_tg_thread_local, "active", False) or bool(config.get("_in_telegram_turn", False))
+
 # ── Tool JSON schemas (sent to Claude API) ─────────────────────────────────
 
 TOOL_SCHEMAS = [
@@ -825,7 +840,7 @@ def _ask_user_question(
 def ask_input_interactive(prompt: str, config: dict, menu_text: str = None) -> str:
     """Prompt the user for input, routing to Telegram if in a Telegram turn.
     If menu_text is provided, it is sent ahead of the prompt."""
-    is_tg = config.get("_in_telegram_turn", False)
+    is_tg = _is_in_tg_turn(config)
     if is_tg and "_tg_send_callback" in config:
         token = config.get("telegram_token")
         chat_id = config.get("telegram_chat_id")

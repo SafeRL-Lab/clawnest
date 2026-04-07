@@ -294,13 +294,17 @@ def messages_to_anthropic(messages: list) -> list:
     return result
 
 
-def messages_to_openai(messages: list, pass_images: bool = False) -> list:
+def messages_to_openai(messages: list, ollama_native_images: bool = False) -> list:
     """Convert neutral messages → OpenAI API format.
 
     Args:
-        pass_images: if True, forward the 'images' list in user messages
-                     (Ollama /api/chat native format). Must be False for
-                     OpenAI/Gemini/Qwen/etc. which use a different image schema.
+        ollama_native_images: if True, forward the 'images' list in user messages
+                              using Ollama's /api/chat native format (a bare base64
+                              list on the message object).  Set this only when
+                              targeting the Ollama backend.
+                              If False (default), images are converted to the
+                              OpenAI/Gemini multipart ``image_url`` format so they
+                              reach vision-capable cloud models correctly.
     """
     result = []
     for m in messages:
@@ -308,8 +312,11 @@ def messages_to_openai(messages: list, pass_images: bool = False) -> list:
 
         if role == "user":
             content = m["content"]
-            if not pass_images and m.get("images"):
-                # OpenAI/Gemini multipart format
+            if ollama_native_images and m.get("images"):
+                # Ollama /api/chat native: bare base64 list on the message
+                msg_out = {"role": "user", "content": content, "images": m["images"]}
+            elif not ollama_native_images and m.get("images"):
+                # OpenAI / Gemini multipart vision format
                 parts = [{"type": "text", "text": content}]
                 for img_b64 in m["images"]:
                     parts.append({
@@ -317,8 +324,6 @@ def messages_to_openai(messages: list, pass_images: bool = False) -> list:
                         "image_url": {"url": f"data:image/png;base64,{img_b64}"},
                     })
                 msg_out = {"role": "user", "content": parts}
-            elif pass_images and m.get("images"):
-                msg_out = {"role": "user", "content": content, "images": m["images"]}
             else:
                 msg_out = {"role": "user", "content": content}
             result.append(msg_out)
@@ -531,7 +536,7 @@ def stream_ollama(
     config: dict,
 ) -> Generator:
     # pass_images=True: Ollama /api/chat accepts base64 images natively in the message
-    oai_messages = [{"role": "system", "content": system}] + messages_to_openai(messages, pass_images=True)
+    oai_messages = [{"role": "system", "content": system}] + messages_to_openai(messages, ollama_native_images=True)
     
     # Ollama requires tool arguments as dict objects, not strings. OpenAI uses strings.
     for m in oai_messages:

@@ -72,7 +72,7 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
 ## 🔥🔥🔥 News (Pacific Time)
 
 
-- Apr 06, 2026 (**v3.05.52**): **Checkpoint system, plan mode, compact, and utility commands, support MiniMax Models, fix telegram bugs** 
+- Apr 06, 2026 (**v3.05.52**): **Checkpoint system, plan mode, compact, and utility commands, support MiniMax Models, fix telegram bugs, fix provider, telegram turns** 
   - **Checkpoint system** (`checkpoint/` package): auto-snapshots conversation state and file changes after every turn. `/checkpoint` lists all snapshots; `/checkpoint <id>` rewinds both files and conversation history to any previous state; `/checkpoint clear` removes all snapshots for the session. `/rewind` is an alias. 100-snapshot sliding window; initial snapshot captured at session start. Throttling: skips when nothing changed. File backups use copy-on-write; snapshots capture post-edit state.
   - **Plan mode**: `/plan <desc>` enters a read-only analysis mode — Claude may only read the codebase and write to a dedicated plan file (`.nano_claude/plans/<session_id>.md`). All other writes are silently blocked with a helpful message. `/plan` shows the current plan; `/plan done` exits plan mode and restores original permissions; `/plan status` reports whether plan mode is active. Two new agent tools — `EnterPlanMode` and `ExitPlanMode` — let Claude autonomously enter and exit plan mode for complex multi-file tasks; both are auto-approved in all permission modes.
   - **`/compact [focus]`**: manually trigger conversation compaction at any time. An optional focus string guides the LLM summarizer on what context to preserve. Auto-compact and manual compact both restore plan file context after compaction.
