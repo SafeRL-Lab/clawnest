@@ -72,7 +72,7 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
 ## 🔥🔥🔥 News (Pacific Time)
 
 
-- Apr 07, 2026 (**v3.05.54**): **Telegram photo/voice support, process-tree kill on Bash timeout, Windows shell hints, worker fix**
+- Apr 07, 2026 (**v3.05.53**): **Telegram photo/voice support, process-tree kill on Bash timeout, Windows shell hints, worker fix**
   - **Telegram photo vision** — send a photo to the Telegram bridge and CheetahClaws will describe it using the active vision model (GPT-4o, Gemini 2.0 Flash, Claude, etc.). The bot downloads the highest-resolution version, encodes it as Base64, and routes it through the same `_pending_image` path as `/img`. Caption text (or a default "describe this image" prompt) is forwarded alongside the image.
   - **Telegram voice/audio STT** — send a voice message or audio file to the Telegram bridge and CheetahClaws transcribes it automatically. OGG voice notes are converted to PCM via `ffmpeg` and passed to the local Whisper backend; falls back to the OpenAI Whisper API when `ffmpeg` is unavailable. The transcription is echoed back to the chat before being submitted as a query.
   - **Process-tree kill on Bash timeout** — when a `Bash` command times out, CheetahClaws now kills the entire child process tree instead of only the shell. On Unix, `os.killpg` sends `SIGKILL` to the process group; on Windows, `taskkill /F /T` terminates all child processes. GUI apps (e.g. PyQt games launched by the agent) no longer leave zombie processes after a timeout. The internal implementation uses `start_new_session=True` instead of `preexec_fn=os.setsid` for thread safety.
