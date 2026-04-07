@@ -718,7 +718,7 @@ def save_latest(args: str, state, config=None) -> bool:
     if not state.messages:
         return True
 
-    cfg = config_or_none or {}
+    cfg = config or {}
     daily_limit   = cfg.get("session_daily_limit",   5)
     history_limit = cfg.get("session_history_limit", 100)
 
@@ -791,12 +791,14 @@ def cmd_load(args: str, state, config) -> bool:
             return True
 
         print(clr("  Select a session to load:", "cyan", "bold"))
+        menu_buf = clr('  Select a session to load:', 'cyan', 'bold')
         prev_date = None
         for i, s in enumerate(sessions):
             # Group by date header
             date_label = s.parent.name if s.parent.name != "mr_sessions" else ""
             if date_label and date_label != prev_date:
                 print(clr(f"\n  ── {date_label} ──", "dim"))
+                menu_buf += "\n" + clr(f"\n  ── {date_label} ──", "dim")
                 prev_date = date_label
 
             label = s.name
@@ -809,6 +811,7 @@ def cmd_load(args: str, state, config) -> bool:
             except Exception:
                 pass
             print(clr(f"  [{i+1:2d}] ", "yellow") + label)
+            menu_buf += "\n" + clr(f"  [{i+1:2d}] ", "yellow") + label
 
         # Show history.json option at the bottom if it exists
         from config import SESSION_HIST_FILE
@@ -819,13 +822,15 @@ def cmd_load(args: str, state, config) -> bool:
                 n_sess  = len(hist_meta.get("sessions", []))
                 n_turns = hist_meta.get("total_turns", 0)
                 print(clr(f"\n  ── Complete History ──", "dim"))
-                print(clr("  [ H] ", "yellow") +
-                      f"Load ALL history  ({n_sess} sessions / {n_turns} total turns)  {SESSION_HIST_FILE}")
+                menu_buf += "\n" + clr(f"\n  ── Complete History ──", "dim")
+                hist_prt = clr("  [ H] ", "yellow") + f"Load ALL history  ({n_sess} sessions / {n_turns} total turns)  {SESSION_HIST_FILE}"
+                print(hist_prt)
+                menu_buf += "\n" + hist_prt
             except Exception:
                 has_history = False
 
         print()
-        ans = ask_input_interactive(clr("  Enter number(s) (e.g. 1 or 1,2,3), H for full history, or Enter to cancel > ", "cyan"), config).strip().lower()
+        ans = ask_input_interactive(clr("  Enter number(s) (e.g. 1 or 1,2,3), H for full history, or Enter to cancel > ", "cyan"), config, menu_buf).strip().lower()
 
         if not ans:
             info("  Cancelled.")
@@ -1700,10 +1705,10 @@ def cmd_ssj(args: str, state, config) -> bool:
         if not files:
             err("No matching files found in current directory.")
             return None
-        print(clr(f"\n  📂 Files in {Path.cwd().name}/", "cyan"))
+        menu_text = clr(f"\n  📂 Files in {Path.cwd().name}/", "cyan")
         for i, f in enumerate(files, 1):
-            print(f"  {i:3d}. {f.name}")
-        sel = ask_input_interactive(clr(prompt_text, "cyan"), config).strip()
+            menu_text += ("\n" + f"  {i:3d}. {f.name}")
+        sel = ask_input_interactive(clr(prompt_text, "cyan"), config, menu_text).strip()
         if sel.isdigit() and 1 <= int(sel) <= len(files):
             return str(files[int(sel) - 1])
         elif sel:  # typed a filename directly
@@ -1715,7 +1720,7 @@ def cmd_ssj(args: str, state, config) -> bool:
 
     while True:
         try:
-            choice = input(clr("\n  ⚡ SSJ » ", "yellow", "bold")).strip()
+            choice = ask_input_interactive(clr("\n  ⚡ SSJ » ", "yellow", "bold"), config, _SSJ_MENU).strip()
         except (KeyboardInterrupt, EOFError):
             break
 
@@ -1792,8 +1797,8 @@ def cmd_ssj(args: str, state, config) -> bool:
                 if _original_md and Path(_original_md).exists():
                     # Offer to auto-generate todo_list.txt from the brainstorm .md, then run worker
                     print(clr(f"\n  ℹ  {_resolved} not found.", "yellow"))
-                    _gen = input(clr(f"  Generate todo_list.txt from {Path(_original_md).name} first, then run Worker? [Y/n]: ",
-                                     "cyan")).strip().lower()
+                    _gen = ask_input_interactive(clr(f"  Generate todo_list.txt from {Path(_original_md).name} first, then run Worker? [Y/n]: ",
+                                     "cyan"), config).strip().lower()
                     if _gen in ("", "y"):
                         return ("__ssj_promote_worker__",
                                 _original_md, str(_resolved), task_num, workers)
