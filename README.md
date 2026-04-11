@@ -72,7 +72,7 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
  
 ## 🔥🔥🔥 News (Pacific Time)
 
-
+ 
 - Apr 11, 2026 (**v3.05.57**): **WeChat bridge, tmux integration, shell escape, `max_tokens` fix, new OpenAI models**
   - **WeChat bridge (`/wechat`)** (`cheetahclaws.py`) — `/wechat login` authenticates with WeChat by scanning a QR code (same iLink Bot API used by the official WeixinClawBot / `@tencent-weixin/openclaw-weixin` plugin). After a one-time scan, `token` + `base_url` are saved to `~/.cheetahclaws/config.json` and the bridge auto-starts on every subsequent launch. The bridge runs a long-poll loop (`POST /ilink/bot/getupdates`, 35-second window) in a daemon thread — normal timeouts are handled transparently and do not trigger backoff or reconnect.
   - **context_token echo** — the iLink protocol requires each reply to include the sender's latest `context_token`. The bridge caches this per `user_id` in memory and echoes it automatically on every outbound message.
