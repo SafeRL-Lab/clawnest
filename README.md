@@ -94,17 +94,6 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
   - **Readline ANSI fix** (#29 / #31) — ANSI color codes in `input()` prompts now wrapped with `\001…\002` (RL_PROMPT_START/END_IGNORE) so readline accounts for them as zero-width. Fixes cursor drift and duplicate-line content when scrolling REPL history.
   - **SSJ Developer Mode extended** — SSJ menu now includes option 11 (🎬 Video factory, conditional) and option 12 (🎙 TTS factory, conditional), matching the modular availability flags.
 
-- Apr 07, 2026 (**v3.05.54**): **Video factory major upgrade: custom script mode, PIL subtitle engine, web image search, wizard UX overhaul: Idea → Story → Final AI Video**. Inspired by Kevin, with sincere thanks for his great help and inspiration in making this project better.
-  - **Custom script mode** — new content mode in `/video` wizard. Choose "Custom script" to paste your own narration text: TTS reads it aloud, and the same text is automatically shown as subtitles (timed proportionally). No AI story generation step, no Whisper required. Ideal for product promos, personal narrations, and multilingual content.
-  - **PIL subtitle rendering engine** — subtitles are now rendered with Pillow (PIL) + NotoSansSC font instead of the libass filter. This fixes non-Latin characters (Chinese, Japanese, Korean, Cyrillic, Arabic) showing as black boxes. The pipeline uses a two-pass approach: fast `-c:v copy` assembly, then PIL-rendered PNG overlays burned in via ffmpeg `filter_complex`. Falls back to no subtitles if PIL fails — never crashes the pipeline.
-  - **Subtitle source selection** — new wizard step to choose subtitle mode: Auto (Whisper transcription), Story text (burn script/story as subtitles — works for all languages, no Whisper needed), Custom text (paste your own), or None.
-  - **Text-to-SRT from plain text** — `text_to_srt()` splits any plain text into natural subtitle chunks (word-wrap for Latin, punctuation+character-wrap for CJK) and distributes timing proportionally across the audio duration. Works for all languages, offline.
-  - **Free web image search** — `/video` now searches for relevant stock photos from Pexels → Wikimedia Commons → Lorem Picsum when no source images or Gemini Web session are available. AI-generated search queries (model-driven) improve relevance. Always produces images — never fails.
-  - **AI-powered source image selection** — when a source folder contains more images than needed, the model reads filenames and story content to select the most relevant ones. Keyword-scoring fallback when the model is unavailable.
-  - **Wizard UX overhaul** — full step-loop wizard with `b`=back, `q`=quit at every step. All options have Auto as default (Enter = Auto). Custom language input (type any language name + Whisper code). Style list shows before prompting. Custom output path step. Detects content language from topic text automatically.
-  - **Audio/video sync fix** — `_audio_duration()` now parses `ffmpeg -i stderr` Duration output for accurate measurement. Previously used a file-size estimate at 128kbps, causing 2.7× overestimate for Edge TTS (which outputs at 48kbps). Videos now always match audio length.
-  - **Source materials** — `--source <dir>` pre-loads images, audio, video, and text files. Images are used directly; audio/video narration replaces TTS; text files are summarised and injected as story context.
-
 
  
 For more news, see [here](https://github.com/SafeRL-Lab/cheetahclaws/blob/main/docs/news.md)
