@@ -91,9 +91,13 @@ def _clean_fallback(raw: str) -> str:
 _PTY_COLS = 80
 _PTY_ROWS = 24
 
-_MAX_CHUNK  = 3500   # chars per bridge message
-_SETTLE     = 3.0    # seconds of silence before flushing (generous for API calls)
-_FORCE_FLUSH = 30.0  # always flush after this long (catches silent processes)
+_MAX_CHUNK        = 3500  # chars per bridge message
+_SETTLE           = 3.0   # seconds of silence before flushing (generous for API calls)
+_SETTLE_AFTER_INPUT = 1.5 # shorter settle used for 8 s after user sends input —
+                          # quick commands (nvidia-smi, ls) settle faster so the user
+                          # doesn't think their input was ignored and resend it
+_POST_INPUT_WINDOW  = 8.0 # seconds after input to use the shorter settle
+_FORCE_FLUSH      = 8.0   # always flush after this long even if output still streaming
 
 
 class InteractiveSession:
@@ -104,8 +108,12 @@ class InteractiveSession:
         self.cmd         = cmd
         self.send_fn     = send_fn
         self.session_key = session_key
-        self._dead       = False
-        self._last_sent  = ""          # deduplicate identical screen renders
+        self._dead           = False
+        self._last_sent      = ""          # deduplicate identical screen renders
+        self._last_input_time: float = 0.0  # monotonic time of last send_input() call
+        # _next_force_flush: when set by send_input(), _read_loop will flush at that
+        # monotonic time even if output is still streaming.  Resets to inf after flush.
+        self._next_force_flush: float = float("inf")
 
         # ── pyte persistent screen ────────────────────────────────────────
         if _HAVE_PYTE:
@@ -184,12 +192,42 @@ class InteractiveSession:
             now     = time.monotonic()
             silence = now - last_data
 
-            # Flush when output has settled, or forced timeout
+            # Use a shorter settle window for _POST_INPUT_WINDOW seconds after the
+            # user sends input.  This means quick commands (nvidia-smi, ls, etc.)
+            # appear on the phone within ~2 s instead of ~3 s, preventing the user
+            # from thinking their input was ignored and resending it.
+            post_input = (now - self._last_input_time) < _POST_INPUT_WINDOW
+            settle = _SETTLE_AFTER_INPUT if post_input else _SETTLE
+
+            # Normal flush: data buffered + silence settled or force-flush timeout
             if self._raw_buf and (
-                silence >= _SETTLE
+                silence >= settle
                 or now - last_flush >= _FORCE_FLUSH
             ):
                 self._flush()
+                last_flush = now
+
+            # Post-input force flush: fires 3.5 s after send_input() regardless of
+            # whether _raw_buf is empty.  Re-renders pyte screen so the user sees
+            # the result even when Claude Code hasn't produced output yet.
+            if now >= self._next_force_flush:
+                self._next_force_flush = float("inf")   # consume timer
+                self._last_sent = ""                    # defeat dedup
+                if self._raw_buf:
+                    self._flush()
+                elif self._screen is not None:
+                    text = self._render_screen().strip()
+                    if not text:
+                        # Screen mid-clear — wait briefly and retry
+                        time.sleep(0.8)
+                        text = self._render_screen().strip()
+                    if text:
+                        self._last_sent = text
+                        for i in range(0, len(text), _MAX_CHUNK):
+                            try:
+                                self.send_fn(f"```\n{text[i:i+_MAX_CHUNK]}\n```")
+                            except Exception:
+                                pass
                 last_flush = now
 
             # Process exited
@@ -264,35 +302,87 @@ class InteractiveSession:
 
         Also clears _last_sent so the next flush is always delivered even if
         the screen content hasn't changed (avoids dedup-silencing responses).
+
+        Schedules a 6-second delayed flush so the response reaches the user even
+        when the process generates continuous output that prevents _SETTLE from
+        firing (e.g. nvidia-smi or a fast-running command).
         """
         if self._dead:
             return
+
+        stripped = text.strip()
+
+        # ── Numbered-menu detection ────────────────────────────────────────
+        # Ink's SelectInput only responds to arrow keys + Enter, NOT to digit
+        # keys.  Claude Code's permission prompt shows "❯ 1. Yes" options.
+        # When the user sends a single digit (1/2/3), we translate it to the
+        # correct ANSI escape sequence:
+        #   1 → \r                  (cursor already on item 1)
+        #   2 → ESC[B \r            (one Down arrow, then Enter)
+        #   3 → ESC[B ESC[B \r      (two Down arrows, then Enter)
+        # Without this translation, digit '2' can be misread by Ink as two
+        # Down presses → landing on "No" → command rejected → loop.
+        payload = text
+        if len(stripped) == 1 and stripped.isdigit() and self._screen is not None:
+            n = int(stripped)
+            if 1 <= n <= 9:
+                screen_text = self._render_screen()
+                # Match Claude Code's permission prompt ("❯ 1." style menu)
+                if "❯ 1." in screen_text:
+                    _DOWN = "\x1b[B"          # ANSI cursor-down
+                    payload = _DOWN * (n - 1) # (n-1) downs from the first item
+
         try:
-            os.write(self.master_fd, (text + "\r").encode("utf-8"))
-            # Clear dedup cache — next output flush must go through regardless
+            os.write(self.master_fd, (payload + "\r").encode("utf-8"))
+            now = time.monotonic()
             self._last_sent = ""
+            self._last_input_time = now
+            self._next_force_flush = now + 3.5
             _log.debug("interactive_input_sent",
-                       key=self.session_key, length=len(text))
+                       key=self.session_key, text=text[:40], payload_len=len(payload))
         except OSError as exc:
             _log.warn("interactive_write_error",
                       key=self.session_key, error=str(exc))
 
     def force_flush(self) -> None:
-        """Force-send current screen content regardless of dedup state."""
+        """Force-send current screen content regardless of dedup state.
+
+        Handles two cases:
+        * Raw bytes buffered → feed them into pyte and send the rendered screen.
+        * No raw bytes       → re-render the current pyte state and send.
+
+        If the rendered screen is empty (happens when the process just cleared the
+        screen mid-redraw), we wait 1.5 s and retry once so the user gets the new
+        content rather than silence.
+        """
         self._last_sent = ""   # defeat deduplication
-        # If there's already raw data buffered, flush it now
+
         if self._raw_buf:
             self._flush()
-        elif self._screen is not None:
-            # Re-render what's on screen and send even if no new raw data
+            return
+
+        if self._screen is None:
+            return
+
+        def _render_and_send() -> bool:
             text = self._render_screen().strip()
-            if text:
-                self._last_sent = text
-                for i in range(0, len(text), _MAX_CHUNK):
-                    try:
-                        self.send_fn(f"```\n{text[i:i+_MAX_CHUNK]}\n```")
-                    except Exception:
-                        pass
+            if not text:
+                return False
+            self._last_sent = text
+            for i in range(0, len(text), _MAX_CHUNK):
+                try:
+                    self.send_fn(f"```\n{text[i:i+_MAX_CHUNK]}\n```")
+                except Exception:
+                    pass
+            return True
+
+        if not _render_and_send():
+            # Screen temporarily empty (mid clear/redraw) — wait and retry once
+            time.sleep(1.5)
+            if self._raw_buf:
+                self._flush()   # new data arrived while we waited
+            else:
+                _render_and_send()
 
     # ── Lifecycle ──────────────────────────────────────────────────────────
 

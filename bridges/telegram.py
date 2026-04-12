@@ -198,6 +198,53 @@ def _tg_poll_loop(token: str, chat_id: int, config: dict) -> str:
                     _tg_send(token, chat_id, f"⌨ `{text[:60]}`")
                     continue
 
+                # ── !agent sub-commands (remote agent control) ────────────
+                if text.strip().lower().startswith("!agent"):
+                    agent_args = text.strip()[6:].strip()
+                    def _agent_ctrl(aargs, chat_token, cid):
+                        try:
+                            from agent_runner import list_runners, stop_runner, stop_all, get_runner
+                            subcmd_parts = aargs.split(None, 1)
+                            subcmd = subcmd_parts[0].lower() if subcmd_parts else "list"
+                            rest = subcmd_parts[1] if len(subcmd_parts) > 1 else ""
+                            if subcmd in ("list", "ls"):
+                                runners = list_runners()
+                                if not runners:
+                                    _tg_send(chat_token, cid, "ℹ No agents running.")
+                                else:
+                                    lines = [f"🤖 {len(runners)} agent(s):"]
+                                    for r in runners:
+                                        lines.append(f"  • {r.name}: {r.status}")
+                                        recs = r.recent_log(1)
+                                        if recs:
+                                            lines.append(f"    {recs[-1].summary[:80]}")
+                                    _tg_send(chat_token, cid, "\n".join(lines))
+                            elif subcmd == "stop":
+                                target = rest.strip()
+                                if not target:
+                                    _tg_send(chat_token, cid, "Usage: !agent stop <name> | all")
+                                elif target.lower() == "all":
+                                    n = stop_all()
+                                    _tg_send(chat_token, cid, f"⏹ Stopped {n} agent(s).")
+                                else:
+                                    ok = stop_runner(target)
+                                    _tg_send(chat_token, cid, f"⏹ '{target}' stopped." if ok else f"ℹ No agent '{target}'.")
+                            elif subcmd == "status":
+                                name = rest.strip()
+                                r = get_runner(name)
+                                if r:
+                                    _tg_send(chat_token, cid, r.summary_text())
+                                else:
+                                    _tg_send(chat_token, cid, f"ℹ No agent '{name}'.")
+                            else:
+                                _tg_send(chat_token, cid, "Usage: !agent list | !agent stop <name> | !agent status <name>")
+                        except Exception as e:
+                            _tg_send(chat_token, cid, f"⚠ agent error: {e}")
+                    threading.Thread(target=_agent_ctrl,
+                                     args=(agent_args, token, chat_id),
+                                     daemon=True).start()
+                    continue
+
                 # Start a new interactive session with !cmd
                 if text.strip().startswith("!"):
                     raw_cmd = text.strip()[1:].strip()

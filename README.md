@@ -91,6 +91,21 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
 ## 🔥🔥🔥 News (Pacific Time)
 
  
+- Apr 12, 2026 (**v3.05.63**): **Phone bridge: PTY permission prompt now responds correctly to digit inputs**
+  - **Ink SelectInput fix** (`bridges/interactive_session.py`) — Claude Code's permission prompts (e.g. "❯ 1. Yes  2. Yes, don't ask again  3. No") are rendered by Ink's `SelectInput` which only responds to arrow-key + Enter events, not digit key presses. Sending `2` from the phone previously had no effect (or misrouted to the wrong option) because the raw digit was written verbatim to the PTY.
+  - **Automatic arrow-key translation** — `send_input()` now detects when the pyte screen shows a numbered `❯ 1.` menu and maps the digit to the correct ANSI escape sequence: `1` → Enter (cursor already on item 1), `2` → `↓` + Enter, `3` → `↓↓` + Enter, and so on up to `9`. The translation fires only when the screen shows the menu pattern and the input is a single digit; all other inputs are forwarded unchanged.
+  - **Version bumped to 3.05.63.**
+
+- Apr 12, 2026 (**v3.05.62**): **`/agent` — autonomous research & coding loop (task template system)**
+  - **`/agent` wizard** — typing `/agent` with no arguments launches an interactive setup wizard: numbered menu (Research Assistant / Auto Bug Fixer / Paper Writer / Auto Coder / Custom), template-specific follow-up questions, summary & confirm. Zero memorization required.
+  - **`agent_runner.py`** — core autonomous loop engine. Each `AgentRunner` owns an isolated `AgentState`, runs `agent.run()` per iteration, auto-grants permissions (configurable), reports iteration summaries via bridge (Telegram/Slack/WeChat) or terminal, persists results to `~/.cheetahclaws/agents/<name>/log.jsonl`.
+  - **4 built-in task templates** (`agent_templates/`): `research_assistant` (read papers → notes → related work), `auto_bug_fixer` (run tests → fix → commit), `paper_writer` (outline → draft section by section), `auto_coder` (tasks.md → implement → test → commit).
+  - **Custom templates** — drop any `.md` file following the program.md pattern (inspired by Karpathy's autoresearch) and launch with `/agent start /path/to/template.md`.
+  - **`/agent start <template> [args]`** — power-user direct launch with `--name`, `--interval`, `--no-auto-approve` flags.
+  - **`/agent stop/list/status/templates`** — full lifecycle management from terminal or phone bridge.
+  - **Phone control** — `!agent list`, `!agent stop <name>`, `!agent status <name>` work in all three bridges for remote monitoring while agents run overnight.
+  - **Version bumped to 3.05.62.**
+
 - Apr 12, 2026 (**v3.05.61**): **Phone vibe-coding: interactive PTY session robustness improvements**
   - **`!exit` with accidental space** (`bridges/telegram.py`, `slack.py`, `wechat.py`) — exit detection now normalises whitespace so `! exit`, `! quit`, `! stop` (with a space after `!`) all correctly terminate the PTY session.
   - **`/exit` and `/quit` intercepted** — these were previously forwarded verbatim into the running process (e.g. Claude Code), causing confusion. They are now caught by the bridge before routing and cleanly end the session.

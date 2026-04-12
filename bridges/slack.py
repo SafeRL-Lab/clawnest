@@ -165,6 +165,38 @@ def _slack_poll_loop(token: str, channel: str, config: dict) -> str:
                     _slack_send(token, channel, f"⌨ `{text[:60]}`")
                     continue
 
+                # ── !agent sub-commands (remote agent control) ────────────
+                if text.strip().lower().startswith("!agent"):
+                    agent_args = text.strip()[6:].strip()
+                    def _sl_agent_ctrl(aargs, ch):
+                        def _send(msg): _slack_send(token, ch, msg)
+                        try:
+                            from agent_runner import list_runners, stop_runner, stop_all, get_runner
+                            subcmd_parts = aargs.split(None, 1)
+                            subcmd = subcmd_parts[0].lower() if subcmd_parts else "list"
+                            rest = subcmd_parts[1] if len(subcmd_parts) > 1 else ""
+                            if subcmd in ("list", "ls"):
+                                runners = list_runners()
+                                _send("ℹ No agents running." if not runners else
+                                      "🤖 " + ", ".join(f"{r.name}({r.status})" for r in runners))
+                            elif subcmd == "stop":
+                                target = rest.strip()
+                                if target.lower() == "all":
+                                    n = stop_all(); _send(f"⏹ Stopped {n} agent(s).")
+                                else:
+                                    ok_ = stop_runner(target)
+                                    _send(f"⏹ '{target}' stopped." if ok_ else f"ℹ No agent '{target}'.")
+                            elif subcmd == "status":
+                                r = get_runner(rest.strip())
+                                _send(r.summary_text() if r else f"ℹ No agent '{rest.strip()}'.")
+                            else:
+                                _send("Usage: !agent list | !agent stop <name> | !agent status <name>")
+                        except Exception as e:
+                            _send(f"⚠ agent error: {e}")
+                    threading.Thread(target=_sl_agent_ctrl, args=(agent_args, channel),
+                                     daemon=True).start()
+                    continue
+
                 if text.strip().startswith("!"):
                     raw_cmd = text.strip()[1:].strip()
                     if not raw_cmd or raw_cmd.lower() == "stop":

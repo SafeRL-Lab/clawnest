@@ -60,6 +60,10 @@ Slash commands in REPL:
   /plan status      Show plan mode status
   /brainstorm <topic>  Multi-persona iterative brainstorming session
   /worker           Auto-implement tasks from todo_list.txt
+  /agent start <template> [args]  Autonomous agent loop (research_assistant / auto_bug_fixer / paper_writer / auto_coder)
+  /agent stop <name>    Stop a running agent
+  /agent list           List running agents
+  /agent templates      List available task templates
   /ssj              SSJ Developer Mode — power menu (brainstorm, debate, worker, review…)
   /image [prompt]   Send clipboard image to vision model
   /voice            Record voice input, transcribe, and submit
@@ -152,6 +156,9 @@ from commands.advanced import (
     _save_synthesis, _print_background_notifications,
 )
 
+# ── Agent (autonomous loop) command ───────────────────────────────────────
+from commands.agent_cmd import cmd_agent
+
 # ── Tools / thread-local bridge state ─────────────────────────────────────
 from tools import (
     ask_input_interactive,
@@ -163,7 +170,7 @@ from tools import (
 # ── Live session context (replaces config["_run_query_callback"] etc.) ─────
 import runtime
 
-VERSION = "3.05.61"
+VERSION = "3.05.63"
 
 # ── Load feature modules from modular/ ecosystem ───────────────────────────
 # Commands from modular/ are merged into COMMANDS after the dict is built.
@@ -272,6 +279,7 @@ COMMANDS = {
     "img":         cmd_image,
     "brainstorm":  cmd_brainstorm,
     "worker":      cmd_worker,
+    "agent":       cmd_agent,
     "ssj":         cmd_ssj,
     "telegram":    cmd_telegram,
     "wechat":      cmd_wechat,
@@ -403,6 +411,7 @@ _CMD_META: dict[str, tuple[str, list[str]]] = {
     "img":         ("Send clipboard image (alias)",       []),
     "brainstorm":  ("Multi-persona AI debate + auto tasks", []),
     "worker":      ("Auto-implement pending tasks",       []),
+    "agent":       ("Autonomous agent loop (task templates)", ["start", "stop", "list", "status", "templates"]),
     "ssj":         ("SSJ Developer Mode — power menu",    []),
     "telegram":    ("Telegram bot bridge",                ["stop", "status"]),
     "wechat":      ("WeChat bridge (iLink Bot API)",      ["stop", "status"]),
