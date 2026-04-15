@@ -10,13 +10,14 @@ English | [中文](https://github.com/SafeRL-Lab/clawspring/blob/main/docs/READM
   
 <h2 align="center" style="font-size: 30px;"><strong><em>CheetahClaws (Nano Claude Code) </em></strong>: A Fast, Easy-to-Use, Python-Native Personal AI Assistant for Any Model, Inspired by OpenClaw and Claude Code, Built to Work for You Autonomously 24/7</h2>
 <p align="center">
-    <a href="https://github.com/chauncygu/collection-claude-code-source-code">The newest source of Claude Code</a>
-    ·
-    <a href="https://github.com/SafeRL-Lab/clawspring/issues">Issue</a>
-    ·
     <a href="https://cheetahclaws.github.io/">Website</a>
     ·
     <a href="https://deepwiki.com/SafeRL-Lab/cheetahclaws">Brief Intro</a>
+    ·
+    <a href="https://github.com/SafeRL-Lab/clawspring/issues">Issue</a>
+    ·
+    <a href="https://github.com/chauncygu/collection-claude-code-source-code">The newest source of Claude Code</a>
+    
   
   </p>
 </div>
