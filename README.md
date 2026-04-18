@@ -446,6 +446,12 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 curl -fsSL https://raw.githubusercontent.com/SafeRL-Lab/cheetahclaws/main/scripts/install.sh | bash
 ```
 
+Or
+
+```
+pip install cheetahclaws
+```
+
 Works on **Linux, macOS, WSL2, and Android (Termux)**. The installer handles everything: checks Python 3.10+, clones the repo, installs via pip, and adds `cheetahclaws` to your PATH.
 
 After installation:
