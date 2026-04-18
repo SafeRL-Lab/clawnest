@@ -44,7 +44,7 @@ def _iter_skill_files(skill_dir: Path):
         return
     yield from sorted(skill_dir.glob("*.md"))
     for child in sorted(skill_dir.iterdir()):
-        if not child.is_dir():
+        if not child.is_dir() or child.name.startswith("."):
             continue
         for candidate in (child / "skill.md", child / "SKILL.md"):
             if candidate.exists():

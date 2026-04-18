@@ -18,7 +18,7 @@ class TestIterSkillFiles:
         d = tmp_path / "my-skill"
         d.mkdir()
         (d / "skill.md").write_text("# My Skill")
-        result = _iter_skill_files(tmp_path)
+        result = list(_iter_skill_files(tmp_path))
         assert len(result) == 1
         assert result[0].name == "skill.md"
 
@@ -26,7 +26,7 @@ class TestIterSkillFiles:
         d = tmp_path / "my-skill"
         d.mkdir()
         (d / "SKILL.md").write_text("# My Skill")
-        result = _iter_skill_files(tmp_path)
+        result = list(_iter_skill_files(tmp_path))
         assert len(result) == 1
         assert result[0].name == "SKILL.md"
 
@@ -35,17 +35,17 @@ class TestIterSkillFiles:
         d = tmp_path / "nested"
         d.mkdir()
         (d / "skill.md").write_text("# Nested")
-        result = _iter_skill_files(tmp_path)
+        result = list(_iter_skill_files(tmp_path))
         assert len(result) == 2
 
     def test_empty_directory(self, tmp_path):
-        assert _iter_skill_files(tmp_path) == []
+        assert list(_iter_skill_files(tmp_path)) == []
 
     def test_subdir_without_skill_md_ignored(self, tmp_path):
         d = tmp_path / "not-a-skill"
         d.mkdir()
         (d / "readme.md").write_text("# Just a readme")
-        result = _iter_skill_files(tmp_path)
+        result = list(_iter_skill_files(tmp_path))
         assert result == []
 
     def test_skill_md_preferred_over_SKILL(self, tmp_path):
@@ -53,6 +53,6 @@ class TestIterSkillFiles:
         d.mkdir()
         (d / "skill.md").write_text("# lower")
         (d / "SKILL.md").write_text("# UPPER")
-        result = _iter_skill_files(tmp_path)
+        result = list(_iter_skill_files(tmp_path))
         assert len(result) == 1
         assert result[0].name == "skill.md"
