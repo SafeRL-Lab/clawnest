@@ -31,6 +31,8 @@ class AgentState:
     messages: list = field(default_factory=list)
     total_input_tokens:  int = 0
     total_output_tokens: int = 0
+    total_cache_read_tokens:  int = 0
+    total_cache_write_tokens: int = 0
     turn_count: int = 0
 
 
