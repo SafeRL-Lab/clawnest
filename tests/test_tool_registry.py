@@ -89,6 +89,19 @@ def test_get_tool_schemas():
     assert schemas[0]["name"] == "echo"
 
 
+def test_get_tool_schemas_honours_disabled_list():
+    register_tool(_make_echo_tool("kept"))
+    register_tool(_make_echo_tool("hidden"))
+    names = [s["name"] for s in get_tool_schemas(disabled=["hidden"])]
+    assert names == ["kept"]
+
+
+def test_execute_tool_refuses_disabled_tool():
+    register_tool(_make_echo_tool("gated"))
+    result = execute_tool("gated", {"text": "x"}, config={"disabled_tools": ["gated"]})
+    assert "disabled" in result.lower()
+
+
 # ------------------------------------------------------------------
 # execute_tool
 # ------------------------------------------------------------------

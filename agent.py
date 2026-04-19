@@ -124,7 +124,7 @@ def run(
                     model=config["model"],
                     system=system_prompt,
                     messages=state.messages,
-                    tool_schemas=get_tool_schemas(),
+                    tool_schemas=get_tool_schemas(disabled=config.get("disabled_tools") or ()),
                     config=config,
                 ):
                     if isinstance(event, (TextChunk, ThinkingChunk)):

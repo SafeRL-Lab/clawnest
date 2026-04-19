@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 
 @dataclass
@@ -69,9 +69,15 @@ def get_all_tools() -> List[ToolDef]:
     return list(_registry.values())
 
 
-def get_tool_schemas() -> List[Dict[str, Any]]:
-    """Return the schemas of all registered tools (for API tool parameter)."""
-    return [t.schema for t in _registry.values()]
+def get_tool_schemas(disabled: Iterable[str] = ()) -> List[Dict[str, Any]]:
+    """Return the schemas of all registered tools (for API tool parameter).
+
+    Tools whose name appears in ``disabled`` are omitted: the LLM never sees
+    them, so it cannot call them. Use this to opt a new tool (e.g. ContextGC)
+    out of a session for backwards-compatibility without touching the registry.
+    """
+    skip = frozenset(disabled or ())
+    return [t.schema for t in _registry.values() if t.name not in skip]
 
 
 def execute_tool(
@@ -91,6 +97,10 @@ def execute_tool(
     Returns:
         Tool result string, possibly truncated.
     """
+    disabled = frozenset(config.get("disabled_tools") or ())
+    if name in disabled:
+        return f"Error: tool '{name}' is disabled in this session (see config['disabled_tools'])."
+
     tool = get_tool(name)
     if tool is None:
         return f"Error: tool '{name}' not found."
