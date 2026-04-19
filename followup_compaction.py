@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import html
 import json
-import re
 import time
 from typing import Iterable
 
@@ -38,13 +37,6 @@ def compact_tool_history(
             compacted.append(message)
             continue
         role = message.get("role")
-        if role == "assistant" and message.get("tool_calls"):
-            stubbed = dict(message)
-            stubbed["content"] = compact_assistant_xml(
-                message["content"], message.get("tool_calls")
-            )
-            compacted.append(stubbed)
-            continue
         if role != "tool" or message.get("name") in exempt:
             compacted.append(message)
             continue
@@ -110,52 +102,6 @@ def _input_brief(name: str, inp: dict) -> str:
     return rendered
 
 
-def _build_tc_lookup(tool_calls: list | None) -> dict:
-    lookup: dict = {}
-    for tc in tool_calls or []:
-        tid = tc.get("id", "")
-        if tid:
-            lookup[tid] = (tc.get("name", "tool"), tc.get("input") or {})
-    return lookup
-
-
-def _xml_replacer(tc_lookup: dict, target_ids: set | None = None):
-    def _replacer(match):
-        name, tid = match.group(1), match.group(2)
-        if target_ids is not None and tid not in target_ids:
-            return match.group(0)
-        tc_name, tc_input = tc_lookup.get(tid, (name, {}))
-        brief = _input_brief(tc_name, tc_input)
-        return f'<tool_use_elided name="{_escape_xml_attr(tc_name)}" brief="{_escape_xml_attr(brief)}"/>'
-    return _replacer
-
-
-_TOOL_USE_RE = re.compile(
-    r'<tool_use\s+name="([^"]+)"\s+id="([^"]+)"[^>]*>.*?</tool_use>',
-    re.DOTALL,
-)
-
-
-def compact_assistant_xml(content: str, tool_calls: list | None = None) -> str:
-    """Replace ALL inline XML tool_use blocks with one-line summaries."""
-    if not content or "<tool_use" not in content:
-        return content
-    return _TOOL_USE_RE.sub(
-        _xml_replacer(_build_tc_lookup(tool_calls)), content,
-    )
-
-
-def compact_assistant_xml_selective(
-    content: str, tool_calls: list | None, target_ids: set,
-) -> str:
-    """Replace only XML blocks whose id is in target_ids, leaving others intact."""
-    if not content or "<tool_use" not in content or not target_ids:
-        return content
-    return _TOOL_USE_RE.sub(
-        _xml_replacer(_build_tc_lookup(tool_calls), target_ids), content,
-    )
-
-
 def build_messages_for_api(state, config: dict) -> list:
     """Apply follow-up compaction + model-driven GC, then inject working memory notes."""
     if not config.get("followup_compaction_enabled", True):
@@ -182,12 +128,14 @@ def build_messages_for_api(state, config: dict) -> list:
 
 
 def _apply_context_gc(messages: list, state) -> list:
-    """Apply model-driven GC decisions and inject working memory notes."""
+    """Apply model-driven GC decisions and inject working memory notes.
+
+    Falls back to returning messages unchanged when the context_gc module is
+    absent (this PR can ship independently of PR #55). The import is narrow:
+    only ImportError is swallowed; any other error propagates.
+    """
     try:
-        try:
-            from context_gc import apply_gc
-        except ImportError:
-            return messages  # context_gc not available yet, skip, inject_notes, prepend_verbatim_audit
+        from context_gc import apply_gc, inject_notes, prepend_verbatim_audit
     except ImportError:
         return messages
     gc_state = getattr(state, 'gc_state', None)

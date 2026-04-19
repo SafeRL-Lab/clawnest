@@ -4,7 +4,6 @@ import pytest
 from followup_compaction import (
     compact_tool_history, _build_tool_call_lookup, _build_stub,
     _input_brief, _escape_xml_attr,
-    compact_assistant_xml, compact_assistant_xml_selective,
     DEFAULT_EXEMPT_TOOLS,
 )
 
@@ -120,43 +119,6 @@ class TestEscapeXmlAttr:
 
     def test_quote(self):
         assert "&quot;" in _escape_xml_attr('"hello"')
-
-
-class TestCompactAssistantXml:
-    def test_replaces_tool_use_blocks(self):
-        content = 'text before <tool_use name="Read" id="r1"><param name="file_path">/a.py</param></tool_use> text after'
-        tool_calls = [{"id": "r1", "name": "Read", "input": {"file_path": "/a.py"}}]
-        result = compact_assistant_xml(content, tool_calls)
-        assert "<tool_use_elided" in result
-        assert "text before" in result
-        assert "text after" in result
-        assert "<tool_use " not in result
-
-    def test_no_tool_use(self):
-        assert compact_assistant_xml("plain text") == "plain text"
-
-    def test_empty(self):
-        assert compact_assistant_xml("") == ""
-        assert compact_assistant_xml(None) is None
-
-
-class TestCompactAssistantXmlSelective:
-    def test_only_targets(self):
-        content = (
-            '<tool_use name="Read" id="r1"><param>x</param></tool_use>'
-            '<tool_use name="Grep" id="r2"><param>y</param></tool_use>'
-        )
-        tool_calls = [
-            {"id": "r1", "name": "Read", "input": {"file_path": "/a.py"}},
-            {"id": "r2", "name": "Grep", "input": {"pattern": "x"}},
-        ]
-        result = compact_assistant_xml_selective(content, tool_calls, {"r1"})
-        assert "<tool_use_elided" in result
-        assert '<tool_use name="Grep"' in result
-
-    def test_empty_targets(self):
-        content = '<tool_use name="Read" id="r1"><param>x</param></tool_use>'
-        assert compact_assistant_xml_selective(content, [], set()) == content
 
 
 class TestBuildToolCallLookup:
