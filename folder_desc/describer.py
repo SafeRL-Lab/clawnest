@@ -13,16 +13,14 @@ _MAX_WORKERS = 8
 
 
 def extract_inline_desc(file_path: str) -> str | None:
+    """Return the `# [desc] ... [/desc]` tag on the first line, or None."""
     try:
         with open(file_path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                m = _DESC_RE.search(line)
-                if m:
-                    return m.group(1).strip()
-                break  # only check first line
+            first_line = next(iter(f), "")
     except OSError:
-        pass
-    return None
+        return None  # unreadable file = no inline description
+    m = _DESC_RE.search(first_line)
+    return m.group(1).strip() if m else None
 
 
 def _read_preview(file_path: str) -> str:
