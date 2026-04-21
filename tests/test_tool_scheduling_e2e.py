@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import tools as _tools_init  # noqa: F401 - force built-in tool registration
 from agent import AgentState, run
-from helpers import scripted_stream
 
 
-def test_schemas_sent_to_llm_include_scheduling_props(monkeypatch, receiver_tool):
+def test_schemas_sent_to_llm_include_scheduling_props(monkeypatch, receiver_tool, scripted_stream):
     """Every schema the LLM sees must carry tool_call_alias + depends_on."""
     captured = []
     monkeypatch.setattr(
