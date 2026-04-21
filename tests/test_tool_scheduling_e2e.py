@@ -100,3 +100,48 @@ def test_scheduling_params_stripped_before_reaching_tool(monkeypatch, receiver_t
     assert seen.get("msg") == "hello"
     assert "tool_call_alias" not in seen
     assert "depends_on" not in seen
+
+
+def test_id_reuse_across_turns_gets_remapped(monkeypatch, receiver_tool):
+    """When LLM reuses an id from a prior turn, uniquify rewrites it."""
+    captured_schemas = []
+    turns = [
+        # Turn 1: tool call with id "r1"
+        {"tool_calls": [{
+            "id": "r1",
+            "name": "receiver",
+            "input": {"msg": "turn1"},
+        }]},
+        # Turn 2: LLM reuses "r1" — uniquify must remap
+        {"tool_calls": [{
+            "id": "r1",
+            "name": "receiver",
+            "input": {"msg": "turn2"},
+        }]},
+        {"text": "done"},
+    ]
+    monkeypatch.setattr("agent.stream", _scripted_stream(captured_schemas, turns))
+
+    state = AgentState()
+    events = list(run("go", state, {"model": "test", "permission_mode": "accept-all",
+                                     "_session_id": "sch3", "disabled_tools": ["Agent"]},
+                       "sys"))
+
+    # Collect tool_call_ids from assistant turns only
+    assistant_ids = []
+    for msg in state.messages:
+        if msg["role"] == "assistant":
+            for tc in msg.get("tool_calls") or []:
+                assistant_ids.append(tc["id"])
+
+    # Both tool calls must exist and have UNIQUE ids
+    assert len(assistant_ids) == 2, f"Expected 2 tool calls, got {assistant_ids}"
+    assert assistant_ids[0] != assistant_ids[1], (
+        f"IDs must be unique across turns but got duplicates: {assistant_ids}"
+    )
+
+    # Tool results must match their corresponding assistant tool_call ids
+    tool_results = [m for m in state.messages if m["role"] == "tool"]
+    assert len(tool_results) == 2
+    assert tool_results[0]["tool_call_id"] == assistant_ids[0]
+    assert tool_results[1]["tool_call_id"] == assistant_ids[1]
